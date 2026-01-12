@@ -120,8 +120,58 @@ export default function JournalTable({ entries, organizationName = 'Organizació
                             ))
                         )}
                     </tbody>
+                    <tfoot className="bg-gray-50 border-t-2 border-gray-300">
+                        <tr>
+                            <td colSpan={4} className="px-4 py-3 text-right font-bold text-gray-900">
+                                TOTALES:
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold font-mono text-green-700">
+                                {filteredEntries.reduce((sum, e) => sum + (e.debit || 0), 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold font-mono text-red-700">
+                                {filteredEntries.reduce((sum, e) => sum + (e.credit || 0), 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                            </td>
+                        </tr>
+                        <tr className="bg-primary-50">
+                            <td colSpan={4} className="px-4 py-2 text-right font-bold text-primary-900">
+                                DIFERENCIA (Debe - Haber):
+                            </td>
+                            <td colSpan={2} className="px-4 py-2 text-center font-bold font-mono text-primary-700">
+                                {(
+                                    filteredEntries.reduce((sum, e) => sum + (e.debit || 0), 0) -
+                                    filteredEntries.reduce((sum, e) => sum + (e.credit || 0), 0)
+                                ).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                            </td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
+            
+            {filteredEntries.length > 0 && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-700">
+                            <strong>Total de asientos:</strong> {filteredEntries.length}
+                        </span>
+                        <span className={`font-semibold ${
+                            Math.abs(
+                                filteredEntries.reduce((sum, e) => sum + (e.debit || 0), 0) -
+                                filteredEntries.reduce((sum, e) => sum + (e.credit || 0), 0)
+                            ) < 0.01
+                                ? 'text-green-700'
+                                : 'text-red-700'
+                        }`}>
+                            {Math.abs(
+                                filteredEntries.reduce((sum, e) => sum + (e.debit || 0), 0) -
+                                filteredEntries.reduce((sum, e) => sum + (e.credit || 0), 0)
+                            ) < 0.01
+                                ? '✓ Partida Doble Balanceada'
+                                : '⚠ Partida Doble Desbalanceada'
+                            }
+                        </span>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

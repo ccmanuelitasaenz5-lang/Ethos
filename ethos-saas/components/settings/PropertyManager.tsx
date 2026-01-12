@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createProperty, deleteProperty } from '@/app/actions/properties'
+import PropertyImport from './PropertyImport'
 
 interface Property {
     id: string
@@ -90,6 +91,8 @@ export default function PropertyManager({ properties }: { properties: Property[]
                     </tbody>
                 </table>
             </div>
+
+            <PropertyImport />
         </div>
     )
 }

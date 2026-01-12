@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { TransactionIncome } from '@/types/database'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -8,23 +9,53 @@ import { TrashIcon, ArrowDownTrayIcon, PrinterIcon } from '@heroicons/react/24/o
 import { deleteIncome } from '@/app/actions/income'
 import { exportIncomeToExcel } from '@/lib/export/excel'
 import PrintHeader from '@/components/layout/PrintHeader'
+import Pagination from '@/components/shared/Pagination'
+import EmptyState from '@/components/shared/EmptyState'
+import { toast } from 'react-hot-toast'
+import { getTotalPages } from '@/lib/pagination'
 
 interface IncomeTableProps {
     incomes: TransactionIncome[]
     organizationName?: string
+    totalItems: number
+    currentPage: number
+    itemsPerPage: number
 }
 
-export default function IncomeTable({ incomes, organizationName = 'Organización' }: IncomeTableProps) {
+export default function IncomeTable({ 
+    incomes, 
+    organizationName = 'Organización',
+    totalItems,
+    currentPage,
+    itemsPerPage
+}: IncomeTableProps) {
+    const router = useRouter()
+    const searchParams = useSearchParams()
     const [deleting, setDeleting] = useState<string | null>(null)
     const [filterMethod, setFilterMethod] = useState<string>('all')
     const [minAmount, setMinAmount] = useState<string>('')
+
+    const totalPages = getTotalPages(totalItems, itemsPerPage)
 
     async function handleDelete(id: string) {
         if (!confirm('¿Estás seguro de eliminar este ingreso?')) return
 
         setDeleting(id)
-        await deleteIncome(id)
+        const result = await deleteIncome(id)
         setDeleting(null)
+        
+        if (result?.error) {
+            toast.error(result.error)
+        } else {
+            toast.success('Ingreso eliminado correctamente')
+            router.refresh()
+        }
+    }
+
+    function handlePageChange(page: number) {
+        const params = new URLSearchParams(searchParams.toString())
+        params.set('page', page.toString())
+        router.push(`/dashboard/ingresos?${params.toString()}`)
     }
 
     const filteredIncomes = incomes.filter(income => {
@@ -122,8 +153,11 @@ export default function IncomeTable({ incomes, organizationName = 'Organización
                     <tbody className="bg-white divide-y divide-gray-200">
                         {incomes.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                                    No hay ingresos registrados
+                                <td colSpan={9} className="px-6 py-8">
+                                    <EmptyState 
+                                        title="No hay ingresos registrados"
+                                        message="Comienza agregando tu primer ingreso usando el botón 'Nuevo Ingreso'"
+                                    />
                                 </td>
                             </tr>
                         ) : (
@@ -175,6 +209,16 @@ export default function IncomeTable({ incomes, organizationName = 'Organización
                     </tbody>
                 </table>
             </div>
+            
+            {totalPages > 1 && (
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={handlePageChange}
+                />
+            )}
         </div>
     )
 }

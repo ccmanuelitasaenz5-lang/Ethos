@@ -7,24 +7,55 @@ import { TrashIcon, ArrowDownTrayIcon, PrinterIcon } from '@heroicons/react/24/o
 import { deleteExpense } from '@/app/actions/expense'
 import { exportExpenseToExcel } from '@/lib/export/excel'
 import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import PrintHeader from '@/components/layout/PrintHeader'
+import Pagination from '@/components/shared/Pagination'
+import EmptyState from '@/components/shared/EmptyState'
+import { toast } from 'react-hot-toast'
+import { getTotalPages } from '@/lib/pagination'
 
 interface ExpenseTableProps {
     expenses: TransactionExpense[]
     organizationName?: string
+    totalItems: number
+    currentPage: number
+    itemsPerPage: number
 }
 
-export default function ExpenseTable({ expenses, organizationName = 'Organización' }: ExpenseTableProps) {
+export default function ExpenseTable({ 
+    expenses, 
+    organizationName = 'Organización',
+    totalItems,
+    currentPage,
+    itemsPerPage
+}: ExpenseTableProps) {
+    const router = useRouter()
+    const searchParams = useSearchParams()
     const [deleting, setDeleting] = useState<string | null>(null)
     const [filterCategory, setFilterCategory] = useState<string>('all')
     const [minAmount, setMinAmount] = useState<string>('')
+
+    const totalPages = getTotalPages(totalItems, itemsPerPage)
 
     async function handleDelete(id: string) {
         if (!confirm('¿Estás seguro de eliminar este gasto?')) return
 
         setDeleting(id)
-        await deleteExpense(id)
+        const result = await deleteExpense(id)
         setDeleting(null)
+        
+        if (result?.error) {
+            toast.error(result.error)
+        } else {
+            toast.success('Gasto eliminado correctamente')
+            router.refresh()
+        }
+    }
+
+    function handlePageChange(page: number) {
+        const params = new URLSearchParams(searchParams.toString())
+        params.set('page', page.toString())
+        router.push(`/dashboard/gastos?${params.toString()}`)
     }
 
     const filteredExpenses = expenses.filter(expense => {
@@ -132,8 +163,11 @@ export default function ExpenseTable({ expenses, organizationName = 'Organizaci�
                     <tbody className="bg-white divide-y divide-gray-200">
                         {expenses.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                                    No hay gastos registrados
+                                <td colSpan={12} className="px-6 py-8">
+                                    <EmptyState 
+                                        title="No hay gastos registrados"
+                                        message="Comienza agregando tu primer gasto usando el botón 'Nuevo Gasto'"
+                                    />
                                 </td>
                             </tr>
                         ) : (
@@ -204,6 +238,16 @@ export default function ExpenseTable({ expenses, organizationName = 'Organizaci�
                     </tbody>
                 </table>
             </div>
+            
+            {totalPages > 1 && (
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={handlePageChange}
+                />
+            )}
         </div>
     )
 }

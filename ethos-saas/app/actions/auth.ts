@@ -4,6 +4,23 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
+// Validación de contraseña
+function validatePassword(password: string): { valid: boolean; error?: string } {
+    if (password.length < 8) {
+        return { valid: false, error: 'La contraseña debe tener al menos 8 caracteres' }
+    }
+    if (!/[A-Z]/.test(password)) {
+        return { valid: false, error: 'La contraseña debe contener al menos una mayúscula' }
+    }
+    if (!/[a-z]/.test(password)) {
+        return { valid: false, error: 'La contraseña debe contener al menos una minúscula' }
+    }
+    if (!/[0-9]/.test(password)) {
+        return { valid: false, error: 'La contraseña debe contener al menos un número' }
+    }
+    return { valid: true }
+}
+
 export async function signup(formData: FormData) {
     const supabase = createClient()
     const adminSupabase = createAdminClient()
@@ -13,8 +30,21 @@ export async function signup(formData: FormData) {
     const password = formData.get('password') as string
     const orgName = (formData.get('org_name') as string) || `Empresa de ${fullName}`
 
+    // Validaciones básicas
     if (!email || !password || !fullName) {
         return { error: 'Todos los campos son obligatorios' }
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+        return { error: 'El formato del email no es válido' }
+    }
+
+    // Validar contraseña
+    const passwordValidation = validatePassword(password)
+    if (!passwordValidation.valid) {
+        return { error: passwordValidation.error }
     }
 
     // 1. Crear usuario en Auth
@@ -24,8 +54,20 @@ export async function signup(formData: FormData) {
         options: { data: { full_name: fullName } }
     })
 
-    if (authError) return { error: `Error en Auth: ${authError.message}` }
-    if (!authData.user) return { error: 'No se pudo crear el usuario' }
+    if (authError) {
+        // Manejo específico de errores comunes
+        if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
+            return { error: 'Este email ya está registrado. Por favor, inicia sesión o usa otro email.' }
+        }
+        if (authError.message.includes('invalid email')) {
+            return { error: 'El formato del email no es válido' }
+        }
+        if (authError.message.includes('password')) {
+            return { error: 'La contraseña no cumple con los requisitos de seguridad' }
+        }
+        return { error: `Error al crear la cuenta: ${authError.message}` }
+    }
+    if (!authData.user) return { error: 'No se pudo crear el usuario. Por favor, intenta nuevamente.' }
 
     // 2. Crear la organización
     // Intentamos insertar. Si falla, capturamos el error exacto de la DB
@@ -36,9 +78,12 @@ export async function signup(formData: FormData) {
         .single()
 
     if (orgError) {
-        // Este console.log aparecerá en tu terminal de VS Code
         console.error('ERROR CRÍTICO DB:', orgError);
-        return { error: `Error DB (Organización): ${orgError.message} - ${orgError.details || ''}` }
+        // Manejo específico de errores de base de datos
+        if (orgError.message.includes('duplicate') || orgError.message.includes('unique')) {
+            return { error: 'Ya existe una organización con ese nombre. Por favor, elige otro nombre.' }
+        }
+        return { error: `Error al crear la organización: ${orgError.message}. Si el problema persiste, contacta al soporte.` }
     }
 
     // 3. Vincular perfil
@@ -52,7 +97,14 @@ export async function signup(formData: FormData) {
         })
 
     if (userError) {
-        return { error: `Error DB (Perfil): ${userError.message}` }
+        // Si falla la creación del perfil, intentar limpiar la organización creada
+        try {
+            await adminSupabase.from('organizations').delete().eq('id', orgData.id)
+        } catch (cleanupError) {
+            // Ignorar errores de limpieza
+            console.error('Error al limpiar organización:', cleanupError)
+        }
+        return { error: `Error al vincular el perfil: ${userError.message}. Por favor, intenta nuevamente.` }
     }
 
     revalidatePath('/', 'layout')

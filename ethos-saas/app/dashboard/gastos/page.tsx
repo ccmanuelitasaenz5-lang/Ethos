@@ -2,8 +2,13 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import ExpenseTable from '@/components/gastos/ExpenseTable'
+import { getPaginationParams, getOffset } from '@/lib/pagination'
 
-export default async function GastosPage() {
+interface GastosPageProps {
+    searchParams: { page?: string; limit?: string }
+}
+
+export default async function GastosPage({ searchParams }: GastosPageProps) {
     const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -27,12 +32,30 @@ export default async function GastosPage() {
         if (orgData) orgName = orgData.name
     }
 
+    // Paginación
+    const page = parseInt(searchParams.page || '1', 10)
+    const limit = parseInt(searchParams.limit || '10', 10)
+    const { page: normalizedPage, limit: normalizedLimit } = getPaginationParams(page, limit)
+    const offset = getOffset(normalizedPage, normalizedLimit)
+
+    // Obtener total de registros
+    const { count } = organizationId
+        ? await supabase
+            .from('transactions_expense')
+            .select('*', { count: 'exact', head: true })
+            .eq('organization_id', organizationId)
+        : { count: 0 }
+
+    const totalItems = count || 0
+
+    // Obtener gastos con paginación
     const { data: expenses } = organizationId
         ? await supabase
             .from('transactions_expense')
             .select('*')
             .eq('organization_id', organizationId)
             .order('date', { ascending: false })
+            .range(offset, offset + normalizedLimit - 1)
         : { data: [] }
 
     return (
@@ -53,7 +76,13 @@ export default async function GastosPage() {
                 </Link>
             </div>
 
-            <ExpenseTable expenses={expenses || []} organizationName={orgName} />
+            <ExpenseTable 
+                expenses={expenses || []} 
+                organizationName={orgName}
+                totalItems={totalItems}
+                currentPage={normalizedPage}
+                itemsPerPage={normalizedLimit}
+            />
         </div>
     )
 }
