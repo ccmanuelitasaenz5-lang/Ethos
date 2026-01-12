@@ -402,13 +402,36 @@ export default function MonthlyClosingWizard() {
             </div>
             <div className="pt-4 flex flex-col items-center space-y-3">
               {reportData && (
-                <PDFDownloadButton
-                  reportType="journal"
-                  data={reportData}
-                  fileName={`Libro_Diario_${selectedMonth}.pdf`}
-                  label="Descargar Libro Diario (PDF)"
-                  className="px-6 py-3 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700 transition-colors shadow-md flex items-center"
-                />
+                <>
+                  <PDFDownloadButton
+                    reportType="journal"
+                    data={reportData}
+                    fileName={`Libro_Diario_${selectedMonth}.pdf`}
+                    label="Descargar Libro Diario (PDF)"
+                    className="px-6 py-3 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700 transition-colors shadow-md flex items-center"
+                  />
+                  <PDFDownloadButton
+                    reportType="ledger"
+                    data={reportData}
+                    fileName={`Libro_Mayor_${selectedMonth}.pdf`}
+                    label="Descargar Libro Mayor (PDF)"
+                    className="px-6 py-3 bg-white text-primary-700 border border-primary-200 font-bold rounded-lg hover:bg-primary-50 transition-colors shadow-sm flex items-center"
+                  />
+                  <PDFDownloadButton
+                    reportType="expense"
+                    data={reportData}
+                    fileName={`Relacion_Gastos_${selectedMonth}.pdf`}
+                    label="Descargar Relación de Gastos (PDF)"
+                    className="px-6 py-3 bg-white text-primary-700 border border-primary-200 font-bold rounded-lg hover:bg-primary-50 transition-colors shadow-sm flex items-center"
+                  />
+                  <PDFDownloadButton
+                    reportType="property-statement"
+                    data={reportData}
+                    fileName={`Aviso_Cobro_${selectedMonth}.pdf`}
+                    label="Descargar Cuadro de Gastos (PDF)"
+                    className="px-6 py-3 bg-white text-primary-700 border border-primary-200 font-bold rounded-lg hover:bg-primary-50 transition-colors shadow-sm flex items-center"
+                  />
+                </>
               )}
 
               <button
