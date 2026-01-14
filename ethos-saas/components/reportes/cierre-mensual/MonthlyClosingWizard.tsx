@@ -5,9 +5,17 @@ import {
   checkAccountingBalance,
   checkPendingReconciliation,
   createMonthlyClosing,
+  savePDFToClosing,
 } from "@/app/actions/closing";
 import { getMonthlyReportData } from "@/app/actions/reports";
 import PDFDownloadButton from "@/components/reports/pdf/PDFDownloadButton";
+import { blobToBase64, generatePDFBlob } from "@/lib/utils/pdf-utils";
+
+// PDF Templates
+import JournalPDF from "@/components/reports/pdf/JournalPDF";
+import LedgerPDF from "@/components/reports/pdf/LedgerPDF";
+import ExpenseReportPDF from "@/components/reports/pdf/ExpenseReportPDF";
+import PropertyStatementPDF from "@/components/reports/pdf/PropertyStatementPDF";
 
 export default function MonthlyClosingWizard() {
   const [step, setStep] = useState(1);
@@ -18,6 +26,8 @@ export default function MonthlyClosingWizard() {
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [reportData, setReportData] = useState<any>(null);
+  const [savingReports, setSavingReports] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
 
   // Validation Results
   const [balanceCheck, setBalanceCheck] = useState<{
@@ -63,6 +73,7 @@ export default function MonthlyClosingWizard() {
   const handleCloseMonth = async () => {
     setLoading(true);
     setError(null);
+    setSavedCount(0);
 
     try {
       // Create a date string for the 1st of the selected month
@@ -75,17 +86,64 @@ export default function MonthlyClosingWizard() {
         throw new Error(result.error);
       }
 
+      const { closingId, organizationId } = result as {
+        closingId: string;
+        organizationId: string;
+      };
+
       // Fetch data for PDF generation
       const pdfData = await getMonthlyReportData(year, month);
-      if (!("error" in pdfData)) {
-        setReportData(pdfData);
+      if ("error" in pdfData) {
+        throw new Error(pdfData.error);
+      }
+      setReportData(pdfData);
+
+      // --- PDF GENERATION AND STORAGE ---
+      setSavingReports(true);
+
+      const reportsToGenerate: Array<{
+        type: "journal" | "ledger" | "expense" | "property-statement";
+        component: React.ReactElement;
+      }> = [
+          { type: "journal", component: <JournalPDF data={pdfData} /> },
+          { type: "ledger", component: <LedgerPDF data={pdfData} /> },
+          { type: "expense", component: <ExpenseReportPDF data={pdfData} /> },
+          {
+            type: "property-statement",
+            component: <PropertyStatementPDF data={pdfData as any} />,
+          },
+        ];
+
+      for (const report of reportsToGenerate) {
+        try {
+          const blob = await generatePDFBlob(report.component);
+          const base64 = await blobToBase64(blob);
+
+          const saveRes = await savePDFToClosing(
+            closingId,
+            organizationId,
+            selectedMonth,
+            report.type,
+            base64,
+          );
+
+          if (saveRes.error) {
+            console.error(`Error saving ${report.type}:`, saveRes.error);
+          } else {
+            setSavedCount((prev) => prev + 1);
+          }
+        } catch (pdfErr) {
+          console.error(`Failed to generate ${report.type}:`, pdfErr);
+        }
       }
 
+      setSavingReports(false);
       setStep(4); // Success
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
+      setSavingReports(false);
     }
   };
 
@@ -338,10 +396,10 @@ export default function MonthlyClosingWizard() {
               </button>
               <button
                 onClick={handleCloseMonth}
-                disabled={loading}
+                disabled={loading || savingReports}
                 className="px-4 py-2 bg-gray-900 text-white font-bold rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors flex items-center"
               >
-                {loading ? (
+                {loading || savingReports ? (
                   <>
                     <svg
                       className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
@@ -363,7 +421,9 @@ export default function MonthlyClosingWizard() {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       ></path>
                     </svg>
-                    Procesando...
+                    {savingReports
+                      ? `Guardando Reportes (${savedCount}/4)...`
+                      : "Procesando..."}
                   </>
                 ) : (
                   "Confirmar y Cerrar Mes"
