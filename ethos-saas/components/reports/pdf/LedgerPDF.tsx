@@ -1,7 +1,7 @@
 import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { styles } from './styles';
-import { ReportData } from '@/app/actions/reports';
+import { ReportData } from '@/types/reports';
 
 // Helper to format currency
 const formatCurrency = (amount: number) => {

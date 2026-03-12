@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { TransactionIncome } from '@/types/database'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { TrashIcon, ArrowDownTrayIcon, PrinterIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, ArrowDownTrayIcon, PrinterIcon, PencilIcon } from '@heroicons/react/24/outline'
+import Link from 'next/link'
 import { deleteIncome } from '@/app/actions/income'
 import { exportIncomeToExcel } from '@/lib/export/excel'
 import PrintHeader from '@/components/layout/PrintHeader'
@@ -22,8 +23,8 @@ interface IncomeTableProps {
     itemsPerPage: number
 }
 
-export default function IncomeTable({ 
-    incomes, 
+export default function IncomeTable({
+    incomes,
     organizationName = 'Organización',
     totalItems,
     currentPage,
@@ -43,7 +44,7 @@ export default function IncomeTable({
         setDeleting(id)
         const result = await deleteIncome(id)
         setDeleting(null)
-        
+
         if (result?.error) {
             toast.error(result.error)
         } else {
@@ -154,7 +155,7 @@ export default function IncomeTable({
                         {incomes.length === 0 ? (
                             <tr>
                                 <td colSpan={9} className="px-6 py-8">
-                                    <EmptyState 
+                                    <EmptyState
                                         title="No hay ingresos registrados"
                                         message="Comienza agregando tu primer ingreso usando el botón 'Nuevo Ingreso'"
                                     />
@@ -193,7 +194,16 @@ export default function IncomeTable({
                                             {income.status === 'finalized' ? 'Finalizado' : 'Borrador'}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                        {income.status === 'draft' && (
+                                            <Link
+                                                href={`/dashboard/ingresos/editar/${income.id}`}
+                                                className="text-primary-600 hover:text-primary-900 inline-block"
+                                                title="Editar"
+                                            >
+                                                <PencilIcon className="h-5 w-5" />
+                                            </Link>
+                                        )}
                                         <button
                                             onClick={() => handleDelete(income.id)}
                                             disabled={deleting === income.id}
@@ -209,7 +219,7 @@ export default function IncomeTable({
                     </tbody>
                 </table>
             </div>
-            
+
             {totalPages > 1 && (
                 <Pagination
                     currentPage={currentPage}

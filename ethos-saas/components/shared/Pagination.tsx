@@ -108,11 +108,11 @@ export default function Pagination({
                 <button
                     onClick={handlePrevious}
                     disabled={currentPage === 1}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border ${
-                        currentPage === 1
-                            ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
+                    aria-label="Página anterior"
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border ${currentPage === 1
+                        ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
                 >
                     <ChevronLeftIcon className="h-5 w-5" />
                 </button>
@@ -137,11 +137,10 @@ export default function Pagination({
                             <button
                                 key={pageNum}
                                 onClick={() => handlePageClick(pageNum)}
-                                className={`px-3 py-2 text-sm font-medium rounded-lg ${
-                                    isActive
-                                        ? 'bg-primary-600 text-white'
-                                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                                }`}
+                                className={`px-3 py-2 text-sm font-medium rounded-lg ${isActive
+                                    ? 'bg-primary-600 text-white'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                                    }`}
                             >
                                 {pageNum}
                             </button>
@@ -152,11 +151,11 @@ export default function Pagination({
                 <button
                     onClick={handleNext}
                     disabled={currentPage === totalPages}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border ${
-                        currentPage === totalPages
-                            ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
+                    aria-label="Página siguiente"
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border ${currentPage === totalPages
+                        ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
                 >
                     <ChevronRightIcon className="h-5 w-5" />
                 </button>

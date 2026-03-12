@@ -1,30 +1,60 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Asset } from '@/types/database'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { TrashIcon, ArrowDownTrayIcon, PrinterIcon } from '@heroicons/react/24/outline'
 import { deleteAsset, updateAssetStatus } from '@/app/actions/assets'
-import { useState } from 'react'
 import * as XLSX from 'xlsx'
 import PrintHeader from '@/components/layout/PrintHeader'
+import Pagination from '@/components/shared/Pagination'
+import { toast } from 'react-hot-toast'
+import { getTotalPages } from '@/lib/pagination'
 
 interface AssetTableProps {
     assets: Asset[]
     organizationName?: string
+    totalItems: number
+    currentPage: number
+    itemsPerPage: number
 }
 
-export default function AssetTable({ assets, organizationName = 'Organización' }: AssetTableProps) {
+export default function AssetTable({
+    assets,
+    organizationName = 'Organización',
+    totalItems,
+    currentPage,
+    itemsPerPage
+}: AssetTableProps) {
+    const router = useRouter()
+    const searchParams = useSearchParams()
     const [deleting, setDeleting] = useState<string | null>(null)
     const [filterStatus, setFilterStatus] = useState<string>('all')
     const [filterCategory, setFilterCategory] = useState<string>('all')
+
+    const totalPages = getTotalPages(totalItems, itemsPerPage)
 
     async function handleDelete(id: string) {
         if (!confirm('¿Estás seguro de eliminar este activo?')) return
 
         setDeleting(id)
-        await deleteAsset(id)
+        const result = await deleteAsset(id)
         setDeleting(null)
+
+        if (result?.error) {
+            toast.error(result.error)
+        } else {
+            toast.success('Activo eliminado correctamente')
+            router.refresh()
+        }
+    }
+
+    function handlePageChange(page: number) {
+        const params = new URLSearchParams(searchParams.toString())
+        params.set('page', page.toString())
+        router.push(`/dashboard/inventario?${params.toString()}`)
     }
 
     async function handleStatusChange(id: string, status: 'active' | 'inactive' | 'disposed') {
@@ -217,6 +247,16 @@ export default function AssetTable({ assets, organizationName = 'Organización' 
                     </tbody>
                 </table>
             </div>
+
+            {totalPages > 1 && (
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={handlePageChange}
+                />
+            )}
         </div>
     )
 }

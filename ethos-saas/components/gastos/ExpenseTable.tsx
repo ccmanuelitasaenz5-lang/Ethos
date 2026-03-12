@@ -3,7 +3,7 @@
 import { TransactionExpense } from '@/types/database'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { TrashIcon, ArrowDownTrayIcon, PrinterIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, ArrowDownTrayIcon, PrinterIcon, PencilIcon } from '@heroicons/react/24/outline'
 import { deleteExpense } from '@/app/actions/expense'
 import { exportExpenseToExcel } from '@/lib/export/excel'
 import { useState } from 'react'
@@ -22,8 +22,8 @@ interface ExpenseTableProps {
     itemsPerPage: number
 }
 
-export default function ExpenseTable({ 
-    expenses, 
+export default function ExpenseTable({
+    expenses,
     organizationName = 'Organización',
     totalItems,
     currentPage,
@@ -43,7 +43,7 @@ export default function ExpenseTable({
         setDeleting(id)
         const result = await deleteExpense(id)
         setDeleting(null)
-        
+
         if (result?.error) {
             toast.error(result.error)
         } else {
@@ -164,7 +164,7 @@ export default function ExpenseTable({
                         {expenses.length === 0 ? (
                             <tr>
                                 <td colSpan={12} className="px-6 py-8">
-                                    <EmptyState 
+                                    <EmptyState
                                         title="No hay gastos registrados"
                                         message="Comienza agregando tu primer gasto usando el botón 'Nuevo Gasto'"
                                     />
@@ -231,6 +231,15 @@ export default function ExpenseTable({
                                         >
                                             <TrashIcon className="h-5 w-5" />
                                         </button>
+                                        {expense.status !== 'finalized' && (
+                                            <button
+                                                onClick={() => router.push(`/dashboard/gastos/editar/${expense.id}`)}
+                                                className="text-primary-600 hover:text-primary-900 ml-3"
+                                                title="Editar"
+                                            >
+                                                <PencilIcon className="h-5 w-5" />
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))
@@ -238,16 +247,18 @@ export default function ExpenseTable({
                     </tbody>
                 </table>
             </div>
-            
-            {totalPages > 1 && (
-                <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    totalItems={totalItems}
-                    itemsPerPage={itemsPerPage}
-                    onPageChange={handlePageChange}
-                />
-            )}
-        </div>
+
+            {
+                totalPages > 1 && (
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        totalItems={totalItems}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={handlePageChange}
+                    />
+                )
+            }
+        </div >
     )
 }

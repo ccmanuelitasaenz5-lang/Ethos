@@ -3,7 +3,17 @@ import Link from 'next/link'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import DocumentList from '@/components/expediente/DocumentList'
 
-export default async function ExpedientePage() {
+const ITEMS_PER_PAGE = 12
+
+interface PageProps {
+    searchParams: Promise<{ page?: string }>
+}
+
+export default async function ExpedientePage({ searchParams }: PageProps) {
+    const params = await searchParams
+    const currentPage = Number(params.page) || 1
+    const offset = (currentPage - 1) * ITEMS_PER_PAGE
+
     const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -16,16 +26,34 @@ export default async function ExpedientePage() {
 
     const organizationId = userData?.organization_id
 
+    // Get total count for pagination
+    const { count: totalItems } = organizationId
+        ? await supabase
+            .from('documents')
+            .select('*', { count: 'exact', head: true })
+            .eq('organization_id', organizationId)
+        : { count: 0 }
+
+    // Get paginated documents
     const { data: documents } = organizationId
         ? await supabase
             .from('documents')
             .select('*')
             .eq('organization_id', organizationId)
             .order('uploaded_at', { ascending: false })
+            .range(offset, offset + ITEMS_PER_PAGE - 1)
         : { data: [] }
 
-    // Calculate total storage used
-    const totalSize = documents?.reduce((sum, doc) => sum + (doc.file_size || 0), 0) || 0
+    // Get ALL documents sizes for storage calculation
+    const { data: allDocs } = organizationId
+        ? await supabase
+            .from('documents')
+            .select('file_size')
+            .eq('organization_id', organizationId)
+        : { data: [] }
+
+    // Calculate total storage used from ALL documents
+    const totalSize = allDocs?.reduce((sum, doc) => sum + (doc.file_size || 0), 0) || 0
     const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2)
 
     return (
@@ -52,7 +80,7 @@ export default async function ExpedientePage() {
                     <div>
                         <p className="text-sm text-gray-500">Total de Documentos</p>
                         <p className="mt-1 text-3xl font-bold text-primary-600">
-                            {documents?.length || 0}
+                            {totalItems || 0}
                         </p>
                     </div>
                     <div>
@@ -73,7 +101,12 @@ export default async function ExpedientePage() {
                 </div>
             </div>
 
-            <DocumentList documents={documents || []} />
+            <DocumentList
+                documents={documents || []}
+                totalItems={totalItems || 0}
+                currentPage={currentPage}
+                itemsPerPage={ITEMS_PER_PAGE}
+            />
         </div>
     )
 }

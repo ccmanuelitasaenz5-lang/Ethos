@@ -1,15 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-
-export interface ReportData {
-  organization: any;
-  period: { start: string; end: string };
-  entries: any[];
-  accounts: any[];
-  properties?: any[];
-  initialBalances: Record<string, number>;
-}
+import { ReportData } from "@/types/reports";
 
 export async function getMonthlyReportData(
   year: number,

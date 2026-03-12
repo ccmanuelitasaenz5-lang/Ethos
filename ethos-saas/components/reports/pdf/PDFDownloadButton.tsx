@@ -2,7 +2,7 @@
 
 import React from "react";
 import dynamic from "next/dynamic";
-import { ReportData } from "@/app/actions/reports";
+import { ReportData } from "@/types/reports";
 import JournalPDF from "./JournalPDF";
 import LedgerPDF from "./LedgerPDF";
 import ExpenseReportPDF from "./ExpenseReportPDF";
@@ -46,11 +46,11 @@ const PDFDownloadLink = dynamic(
 
 interface PDFDownloadButtonProps {
   reportType:
-    | "journal"
-    | "ledger"
-    | "balance"
-    | "expense"
-    | "property-statement";
+  | "journal"
+  | "ledger"
+  | "balance"
+  | "expense"
+  | "property-statement";
   data: ReportData;
   fileName?: string;
   label?: string;

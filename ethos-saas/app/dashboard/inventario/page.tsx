@@ -3,7 +3,17 @@ import Link from 'next/link'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import AssetTable from '@/components/inventario/AssetTable'
 
-export default async function InventarioPage() {
+const ITEMS_PER_PAGE = 10
+
+interface PageProps {
+    searchParams: Promise<{ page?: string }>
+}
+
+export default async function InventarioPage({ searchParams }: PageProps) {
+    const params = await searchParams
+    const currentPage = Number(params.page) || 1
+    const offset = (currentPage - 1) * ITEMS_PER_PAGE
+
     const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -27,17 +37,35 @@ export default async function InventarioPage() {
         if (orgData) orgName = orgData.name
     }
 
+    // Get total count for pagination
+    const { count: totalItems } = organizationId
+        ? await supabase
+            .from('assets')
+            .select('*', { count: 'exact', head: true })
+            .eq('organization_id', organizationId)
+        : { count: 0 }
+
+    // Get paginated assets
     const { data: assets } = organizationId
         ? await supabase
             .from('assets')
             .select('*')
             .eq('organization_id', organizationId)
             .order('purchase_date', { ascending: false })
+            .range(offset, offset + ITEMS_PER_PAGE - 1)
         : { data: [] }
 
-    // Calculate totals
-    const totalCost = assets?.reduce((sum, a) => sum + (a.cost_usd || 0), 0) || 0
-    const totalDepreciation = assets?.reduce((sum, a) => sum + (a.accumulated_depreciation || 0), 0) || 0
+    // Get ALL assets for summary calculations (without pagination)
+    const { data: allAssets } = organizationId
+        ? await supabase
+            .from('assets')
+            .select('cost_usd, accumulated_depreciation')
+            .eq('organization_id', organizationId)
+        : { data: [] }
+
+    // Calculate totals from all assets
+    const totalCost = allAssets?.reduce((sum, a) => sum + (a.cost_usd || 0), 0) || 0
+    const totalDepreciation = allAssets?.reduce((sum, a) => sum + (a.accumulated_depreciation || 0), 0) || 0
     const netValue = totalCost - totalDepreciation
 
     return (
@@ -65,7 +93,7 @@ export default async function InventarioPage() {
                     <p className="mt-2 text-3xl font-bold text-blue-600">
                         ${totalCost.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">{assets?.length || 0} activos</p>
+                    <p className="text-xs text-gray-500 mt-1">{totalItems || 0} activos</p>
                 </div>
 
                 <div className="bg-white shadow-lg rounded-xl p-6">
@@ -87,7 +115,14 @@ export default async function InventarioPage() {
                 </div>
             </div>
 
-            <AssetTable assets={assets || []} organizationName={orgName} />
+            <AssetTable
+                assets={assets || []}
+                organizationName={orgName}
+                totalItems={totalItems || 0}
+                currentPage={currentPage}
+                itemsPerPage={ITEMS_PER_PAGE}
+            />
         </div>
     )
 }
+

@@ -1,22 +1,24 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createIncome } from '@/app/actions/income'
+import { createIncome, updateIncome } from '@/app/actions/income'
 import { useRouter } from 'next/navigation'
 
 interface IncomeFormProps {
     initialRate?: number
     accounts?: any[]
     properties?: any[]
+    initialData?: any
 }
 
-export default function IncomeForm({ initialRate, accounts = [], properties = [] }: IncomeFormProps) {
+export default function IncomeForm({ initialRate, accounts = [], properties = [], initialData }: IncomeFormProps) {
     const router = useRouter()
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
-    const [exchangeRate, setExchangeRate] = useState(initialRate?.toString() || '')
-    const [amountUSD, setAmountUSD] = useState('')
-    const [amountVES, setAmountVES] = useState('')
+    const [exchangeRate, setExchangeRate] = useState(initialData?.exchange_rate?.toString() || initialRate?.toString() || '')
+    const [amountUSD, setAmountUSD] = useState(initialData?.amount_usd?.toString() || '')
+    const [amountVES, setAmountVES] = useState(initialData?.amount_ves?.toString() || '')
+    const [status, setStatus] = useState(initialData?.status || 'draft')
 
     // Bidirectional conversion
     const handleUSDChange = (val: string) => {
@@ -48,8 +50,6 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
         }
     }
 
-    const [status, setStatus] = useState('draft')
-
     async function handleSubmit(formData: FormData) {
         setLoading(true)
         setError(null)
@@ -66,7 +66,10 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
             // formData.append('fiscal_serial', result.fiscalSerial)
         }
 
-        const result = await createIncome(formData)
+        const result = initialData?.id
+            ? await updateIncome(initialData.id, formData)
+            : await createIncome(formData)
+
         if (result?.error) {
             setError(result.error)
             setLoading(false)
@@ -99,6 +102,7 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
                     <select
                         id="property_id"
                         name="property_id"
+                        defaultValue={initialData?.property_id || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     >
                         <option value="">Seleccionar...</option>
@@ -118,6 +122,7 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
                         type="text"
                         id="receipt_number"
                         name="receipt_number"
+                        defaultValue={initialData?.receipt_number || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                         placeholder="REC-001"
                     />
@@ -131,6 +136,7 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
                         type="text"
                         id="control_number"
                         name="control_number"
+                        defaultValue={initialData?.control_number || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                         placeholder="00-000000"
                     />
@@ -145,6 +151,7 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
                         id="concept"
                         name="concept"
                         required
+                        defaultValue={initialData?.concept || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                         placeholder="Pago de condominio"
                     />
@@ -158,6 +165,7 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
                         id="account_code"
                         name="account_code"
                         required
+                        defaultValue={initialData?.account_code || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     >
                         <option value="">Seleccionar cuenta...</option>
@@ -180,6 +188,7 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
                         id="bank_account"
                         name="bank_account"
                         required
+                        defaultValue={initialData?.bank_account || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     >
                         <option value="">Seleccionar banco/caja...</option>
@@ -262,6 +271,7 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
                     <select
                         id="payment_method"
                         name="payment_method"
+                        defaultValue={initialData?.payment_method || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     >
                         <option value="">Seleccionar...</option>

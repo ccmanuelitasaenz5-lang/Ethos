@@ -1,32 +1,33 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createExpense } from '@/app/actions/expense'
+import { createExpense, updateExpense } from '@/app/actions/expense'
 import { useRouter } from 'next/navigation'
 
 interface ExpenseFormProps {
     initialRate?: number
     accounts?: any[]
+    initialData?: any
 }
 
-export default function ExpenseForm({ initialRate, accounts = [] }: ExpenseFormProps) {
+export default function ExpenseForm({ initialRate, accounts = [], initialData }: ExpenseFormProps) {
     const router = useRouter()
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
-    const [status, setStatus] = useState('draft')
+    const [status, setStatus] = useState(initialData?.status || 'draft')
 
     // Amounts
-    const [subtotalUSD, setSubtotalUSD] = useState('')
-    const [subtotalVES, setSubtotalVES] = useState('')
+    const [subtotalUSD, setSubtotalUSD] = useState(initialData?.subtotal?.toString() || '')
+    const [subtotalVES, setSubtotalVES] = useState(initialData?.amount_ves?.toString() || '')
 
     // Rates & Tax
-    const [ivaPercentage, setIvaPercentage] = useState('16')
-    const [exchangeRate, setExchangeRate] = useState(initialRate?.toString() || '')
+    const [ivaPercentage, setIvaPercentage] = useState(initialData?.iva_percentage?.toString() || '16')
+    const [exchangeRate, setExchangeRate] = useState(initialData?.exchange_rate?.toString() || initialRate?.toString() || '')
 
     // Fiscal
-    const [igtfApply, setIgtfApply] = useState(false)
-    const [retentionIvaPercent, setRetentionIvaPercent] = useState('75') // Default usually 75% or 100%
-    const [retentionIslrPercent, setRetentionIslrPercent] = useState('0')
+    const [igtfApply, setIgtfApply] = useState(initialData?.igtf_apply || false)
+    const [retentionIvaPercent, setRetentionIvaPercent] = useState('75')
+    const [retentionIslrPercent, setRetentionIslrPercent] = useState(initialData?.retention_islr?.toString() || '0')
 
     // Calculation logic
     const calculateIVA = (baseUSD: number) => {
@@ -105,7 +106,10 @@ export default function ExpenseForm({ initialRate, accounts = [] }: ExpenseFormP
         }
 
         setError(null)
-        const result = await createExpense(formData)
+        const result = initialData
+            ? await updateExpense(initialData.id, formData)
+            : await createExpense(formData)
+
         if (result?.error) {
             setError(result.error)
             setLoading(false)
@@ -126,7 +130,7 @@ export default function ExpenseForm({ initialRate, accounts = [] }: ExpenseFormP
                         id="date"
                         name="date"
                         required
-                        defaultValue={new Date().toISOString().split('T')[0]}
+                        defaultValue={initialData?.date || new Date().toISOString().split('T')[0]}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     />
                 </div>
@@ -139,6 +143,7 @@ export default function ExpenseForm({ initialRate, accounts = [] }: ExpenseFormP
                         type="text"
                         id="invoice_number"
                         name="invoice_number"
+                        defaultValue={initialData?.invoice_number || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                         placeholder="FAC-001"
                     />
@@ -152,6 +157,7 @@ export default function ExpenseForm({ initialRate, accounts = [] }: ExpenseFormP
                         type="text"
                         id="control_number"
                         name="control_number"
+                        defaultValue={initialData?.control_number || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                         placeholder="00-000000"
                     />
@@ -166,6 +172,7 @@ export default function ExpenseForm({ initialRate, accounts = [] }: ExpenseFormP
                         id="supplier"
                         name="supplier"
                         required
+                        defaultValue={initialData?.supplier || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                         placeholder="Nombre del proveedor"
                     />
@@ -180,6 +187,7 @@ export default function ExpenseForm({ initialRate, accounts = [] }: ExpenseFormP
                         id="concept"
                         name="concept"
                         required
+                        defaultValue={initialData?.concept || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                         placeholder="Descripción del gasto"
                     />
@@ -193,6 +201,7 @@ export default function ExpenseForm({ initialRate, accounts = [] }: ExpenseFormP
                         id="account_code"
                         name="account_code"
                         required
+                        defaultValue={initialData?.account_code || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     >
                         <option value="">Seleccionar cuenta...</option>
@@ -215,6 +224,7 @@ export default function ExpenseForm({ initialRate, accounts = [] }: ExpenseFormP
                         id="payment_account"
                         name="payment_account"
                         required
+                        defaultValue={initialData?.account_code_payment || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     >
                         <option value="">Seleccionar banco/caja...</option>
@@ -236,6 +246,7 @@ export default function ExpenseForm({ initialRate, accounts = [] }: ExpenseFormP
                     <select
                         id="category"
                         name="category"
+                        defaultValue={initialData?.category || ''}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     >
                         <option value="">Seleccionar...</option>
@@ -398,6 +409,7 @@ export default function ExpenseForm({ initialRate, accounts = [] }: ExpenseFormP
                         <select
                             id="payment_method"
                             name="payment_method"
+                            defaultValue={initialData?.payment_method || ''}
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
                         >
                             <option value="">Seleccionar...</option>

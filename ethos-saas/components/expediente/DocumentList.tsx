@@ -13,21 +13,50 @@ import {
 } from '@heroicons/react/24/outline'
 import { deleteDocument } from '@/app/actions/documents'
 import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Pagination from '@/components/shared/Pagination'
+import { getTotalPages } from '@/lib/pagination'
+import { toast } from 'react-hot-toast'
 
 interface DocumentListProps {
     documents: Document[]
+    totalItems: number
+    currentPage: number
+    itemsPerPage: number
 }
 
-export default function DocumentList({ documents }: DocumentListProps) {
+export default function DocumentList({
+    documents,
+    totalItems,
+    currentPage,
+    itemsPerPage
+}: DocumentListProps) {
+    const router = useRouter()
+    const searchParams = useSearchParams()
     const [deleting, setDeleting] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
+
+    const totalPages = getTotalPages(totalItems, itemsPerPage)
 
     async function handleDelete(id: string, fileUrl: string) {
         if (!confirm('¿Estás seguro de eliminar este documento?')) return
 
         setDeleting(id)
-        await deleteDocument(id, fileUrl)
+        const result = await deleteDocument(id, fileUrl)
         setDeleting(null)
+
+        if (result?.error) {
+            toast.error(result.error)
+        } else {
+            toast.success('Documento eliminado correctamente')
+            router.refresh()
+        }
+    }
+
+    function handlePageChange(page: number) {
+        const params = new URLSearchParams(searchParams.toString())
+        params.set('page', page.toString())
+        router.push(`/dashboard/expediente?${params.toString()}`)
     }
 
     function getFileIcon(mimeType: string | null) {
@@ -133,6 +162,18 @@ export default function DocumentList({ documents }: DocumentListProps) {
                             </div>
                         )
                     })}
+                </div>
+            )}
+
+            {totalPages > 1 && (
+                <div className="p-4 border-t border-gray-200">
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        totalItems={totalItems}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={handlePageChange}
+                    />
                 </div>
             )}
         </div>

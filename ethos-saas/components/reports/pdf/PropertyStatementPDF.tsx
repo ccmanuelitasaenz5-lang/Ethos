@@ -1,7 +1,7 @@
 import React from 'react';
 import { Document, Page, Text, View } from '@react-pdf/renderer';
 import { styles } from './styles';
-import { ReportData } from '@/app/actions/reports';
+import { ReportData } from '@/types/reports';
 
 // Helper to format currency
 const formatCurrency = (amount: number) => {
@@ -80,17 +80,17 @@ export default function PropertyStatementPDF({ data }: PropertyStatementPDFProps
 
         {/* SUMMARY SECTION */}
         <View style={styles.section}>
-            <Text style={styles.sectionTitle}>RESUMEN DEL PERIODO</Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#F9FAFB', padding: 10, borderRadius: 4 }}>
-                <Text>Total Gastos Comunes:</Text>
-                <Text style={styles.bold}>{formatCurrency(totalExpense)}</Text>
-            </View>
+          <Text style={styles.sectionTitle}>RESUMEN DEL PERIODO</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#F9FAFB', padding: 10, borderRadius: 4 }}>
+            <Text>Total Gastos Comunes:</Text>
+            <Text style={styles.bold}>{formatCurrency(totalExpense)}</Text>
+          </View>
         </View>
 
         {/* DISTRIBUTION TABLE */}
         <View style={styles.table}>
-           {/* Table Header */}
-           <View style={[styles.tableRow, styles.tableHeader]}>
+          {/* Table Header */}
+          <View style={[styles.tableRow, styles.tableHeader]}>
             <View style={[styles.tableCell, { width: '15%' }]}>
               <Text>UNIDAD</Text>
             </View>
@@ -106,32 +106,32 @@ export default function PropertyStatementPDF({ data }: PropertyStatementPDFProps
           </View>
 
           {sortedProperties.length === 0 ? (
-             <View style={styles.tableRow}>
-                <View style={[styles.tableCell, styles.tableCellLast, { width: '100%', padding: 20 }]}>
-                   <Text style={[styles.textCenter, { color: '#6B7280' }]}>
-                       No hay propiedades registradas para distribuir gastos.
-                   </Text>
-                </View>
-             </View>
+            <View style={styles.tableRow}>
+              <View style={[styles.tableCell, styles.tableCellLast, { width: '100%', padding: 20 }]}>
+                <Text style={[styles.textCenter, { color: '#6B7280' }]}>
+                  No hay propiedades registradas para distribuir gastos.
+                </Text>
+              </View>
+            </View>
           ) : (
             sortedProperties.map((prop, idx) => {
-                const amountToPay = totalExpense * (Number(prop.aliquot) / 100);
-                return (
-                  <View key={prop.id || idx} style={styles.tableRow}>
-                    <View style={[styles.tableCell, { width: '15%' }]}>
-                      <Text style={styles.bold}>{prop.number}</Text>
-                    </View>
-                    <View style={[styles.tableCell, { width: '50%' }]}>
-                      <Text>{prop.owner_name || 'Sin propietario'}</Text>
-                    </View>
-                    <View style={[styles.tableCell, { width: '15%' }]}>
-                      <Text style={styles.textRight}>{Number(prop.aliquot).toFixed(4)}%</Text>
-                    </View>
-                    <View style={[styles.tableCell, styles.tableCellLast, { width: '20%' }]}>
-                      <Text style={styles.textRight}>{formatCurrency(amountToPay)}</Text>
-                    </View>
+              const amountToPay = totalExpense * (Number(prop.aliquot) / 100);
+              return (
+                <View key={prop.id || idx} style={styles.tableRow}>
+                  <View style={[styles.tableCell, { width: '15%' }]}>
+                    <Text style={styles.bold}>{prop.number}</Text>
                   </View>
-                );
+                  <View style={[styles.tableCell, { width: '50%' }]}>
+                    <Text>{prop.owner_name || 'Sin propietario'}</Text>
+                  </View>
+                  <View style={[styles.tableCell, { width: '15%' }]}>
+                    <Text style={styles.textRight}>{Number(prop.aliquot).toFixed(4)}%</Text>
+                  </View>
+                  <View style={[styles.tableCell, styles.tableCellLast, { width: '20%' }]}>
+                    <Text style={styles.textRight}>{formatCurrency(amountToPay)}</Text>
+                  </View>
+                </View>
+              );
             })
           )}
 

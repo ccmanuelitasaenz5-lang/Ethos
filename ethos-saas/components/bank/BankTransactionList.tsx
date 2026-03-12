@@ -84,6 +84,38 @@ export default function BankTransactionList({
         />
       )}
 
+      {/* Resumen de Totales */}
+      {transactions.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+            <p className="text-xs font-bold text-gray-400 uppercase">Total Ingresos</p>
+            <p className="text-xl font-black text-green-600">
+              Bs. {transactions
+                .filter(t => (t.transaction_type || '').toLowerCase() === 'income')
+                .reduce((acc, t) => acc + Math.abs(parseFloat(t.amount || 0)), 0)
+                .toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+            <p className="text-xs font-bold text-gray-400 uppercase">Total Egresos</p>
+            <p className="text-xl font-black text-red-600">
+              Bs. {transactions
+                .filter(t => ['expense', 'fee'].includes((t.transaction_type || '').toLowerCase()))
+                .reduce((acc, t) => acc + Math.abs(parseFloat(t.amount || 0)), 0)
+                .toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm font-bold">
+            <p className="text-xs font-bold text-gray-400 uppercase">Diferencia Neta</p>
+            <p className={`text-xl font-black ${(transactions.reduce((acc, t) => acc + parseFloat(t.amount || 0), 0)) < 0 ? 'text-red-700' : 'text-primary-700'}`}>
+              Bs. {transactions
+                .reduce((acc, t) => acc + parseFloat(t.amount || 0), 0)
+                .toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -132,15 +164,14 @@ export default function BankTransactionList({
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <span
-                      className={`px-2 py-1 text-xs font-bold rounded-full ${
-                        tx.transaction_type === "income"
-                          ? "bg-green-100 text-green-700"
-                          : tx.transaction_type === "expense"
-                            ? "bg-red-100 text-red-700"
-                            : tx.transaction_type === "fee"
-                              ? "bg-orange-100 text-orange-700"
-                              : "bg-blue-100 text-blue-700"
-                      }`}
+                      className={`px-2 py-1 text-xs font-bold rounded-full ${tx.transaction_type === "income"
+                        ? "bg-green-100 text-green-700"
+                        : tx.transaction_type === "expense"
+                          ? "bg-red-100 text-red-700"
+                          : tx.transaction_type === "fee"
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}
                     >
                       {tx.transaction_type === "income"
                         ? "Ingreso"
@@ -163,11 +194,10 @@ export default function BankTransactionList({
                       onClick={() =>
                         handleToggleReconciled(tx.id, tx.is_reconciled)
                       }
-                      className={`flex items-center justify-center w-full px-2 py-1 rounded-md transition-colors ${
-                        tx.is_reconciled
-                          ? "text-green-700 bg-green-50 hover:bg-green-100"
-                          : "text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-700"
-                      }`}
+                      className={`flex items-center justify-center w-full px-2 py-1 rounded-md transition-colors ${tx.is_reconciled
+                        ? "text-green-700 bg-green-50 hover:bg-green-100"
+                        : "text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-700"
+                        }`}
                       title={
                         tx.is_reconciled
                           ? "Marcar como pendiente"

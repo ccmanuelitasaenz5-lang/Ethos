@@ -62,6 +62,11 @@ export default function LoginPage() {
                                 placeholder="••••••••"
                             />
                         </div>
+                        <div className="flex items-center justify-end">
+                            <Link href="/forgot-password" tabIndex={-1} className="text-sm font-medium text-primary-600 hover:text-primary-500">
+                                ¿Olvidaste tu contraseña?
+                            </Link>
+                        </div>
                     </div>
 
                     {error && (
@@ -85,11 +90,6 @@ export default function LoginPage() {
                         </Link>
                     </div>
 
-                    <div className="text-center text-sm">
-                        <Link href="/forgot-password" title="Olvidé mi contraseña" className="text-gray-500 hover:text-primary-600 transition-colors">
-                            ¿Olvidaste tu contraseña?
-                        </Link>
-                    </div>
                 </form>
             </div>
         </div>
