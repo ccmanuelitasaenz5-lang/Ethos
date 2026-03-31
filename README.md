@@ -192,19 +192,24 @@ ethos-saas/
 
 ## 📝 Roadmap
 
-- [x] Autenticación y autorización
-- [x] Dashboard con KPIs
-- [x] Módulo de Ingresos
-- [x] Módulo de Gastos
-- [x] Reportes financieros con filtros
+- [x] Autenticación y autorización (roles: admin, auditor, resident)
+- [x] Dashboard con KPIs en tiempo real
+- [x] Módulo de Ingresos con conversión USD/VES
+- [x] Módulo de Gastos con IVA, ISLR e IGTF
+- [x] Reportes financieros con filtros por período y categorías
 - [x] Exportación a Excel (ingresos, gastos, resumen)
-- [ ] Módulo de Inventario (activos fijos)
-- [ ] Expediente Digital (documentos)
-- [ ] Libro Diario y Mayor
-- [ ] Gráficos interactivos (Recharts)
-- [ ] Exportación a PDF
-- [ ] Sistema de backup completo
+- [x] Módulo de Inventario (activos fijos con depreciación)
+- [x] Expediente Digital (documentos en Supabase Storage)
+- [x] Libro Diario y Mayor contable
+- [x] Gráficos interactivos (Recharts)
+- [x] Exportación a PDF (react-pdf/renderer)
+- [x] Sistema de backup y logs de auditoría
+- [x] Portal del Residente
+- [x] Rate limiting y logs de seguridad
+- [x] Módulo Bancario con conciliación
+- [x] Cierre mensual por períodos
 - [ ] Notificaciones por email
+- [ ] Facturación electrónica SENIAT
 
 ## 🤝 Contribuir
 
