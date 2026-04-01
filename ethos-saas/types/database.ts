@@ -124,6 +124,19 @@ export interface JournalEntry {
     updated_at: string
 }
 
+export interface TransactionAccount {
+    id: string
+    organization_id: string
+    code: string
+    name: string
+    level: number
+    main_type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'INCOME' | 'EXPENSE'
+    is_movement: boolean
+    parent_id: string | null
+    created_at: string
+    updated_at: string
+}
+
 export interface DashboardStats {
     totalIncome: number
     totalIncomeVES?: number
@@ -135,4 +148,3 @@ export interface DashboardStats {
     bankBalance: number
     bankBalanceVES?: number
 }
-

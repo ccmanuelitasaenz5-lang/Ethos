@@ -1,55 +1,88 @@
 'use server'
-
-/**
- * Utility to fetch the official exchange rate (USD to VES) from BCV (Banco Central de Venezuela)
- */
-export async function getBCVRate(): Promise<number> {
-    const FALLBACK_RATE = 311.88 // Updated to current verified rate
-
-    return new Promise((resolve) => {
-        const https = require('https')
-
-        const options = {
-            hostname: 'www.bcv.org.ve',
-            port: 443,
-            path: '/',
-            method: 'GET',
-            rejectUnauthorized: false, // Bypass SSL issue
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            }
+ 
+import { createClient } from '@/lib/supabase/server'
+import { unstable_cache } from 'next/cache'
+ 
+const FALLBACK_RATE = 311.88
+ 
+// ── Scraping BCV (solo se llama internamente) ──────────
+async function scrapeBCVRate(): Promise<number> {
+  return new Promise((resolve) => {
+    const https = require('https')
+    const options = {
+      hostname: 'www.bcv.org.ve',
+      port: 443, path: '/', method: 'GET',
+      // REMOVIDO: rejectUnauthorized: false
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    }
+    const req = https.request(options, (res: any) => {
+      let data = ''
+      res.on('data', (c: any) => { data += c })
+      res.on('end', () => {
+        const match = data.match(/id="dolar"[\s\S]*?<strong>\s*([\d,.]+)\s*<\/strong>/i)
+        if (match?.[1]) {
+          const rate = parseFloat(match[1].replace(',', '.'))
+          if (!isNaN(rate) && rate > 0) { resolve(rate); return }
         }
-
-        const req = https.request(options, (res: any) => {
-            let data = ''
-            res.on('data', (chunk: any) => { data += chunk })
-            res.on('end', () => {
-                // Attempt 1: Specific ID and Strong tag
-                const dolarRegex = /id="dolar"[\s\S]*?<strong>\s*([\d,.]+)\s*<\/strong>/i
-                // Attempt 2: Search for USD text near a rate
-                const usdNearRegex = /USD[\s\S]*?<strong>\s*([\d,.]+)\s*<\/strong>/i
-
-                const match = data.match(dolarRegex) || data.match(usdNearRegex)
-
-                if (match && match[1]) {
-                    const valueStr = match[1].trim().replace(',', '.')
-                    const rate = parseFloat(valueStr)
-                    if (!isNaN(rate) && rate > 0) {
-                        console.log('BCV Rate successfully updated (via https):', rate)
-                        resolve(rate)
-                        return
-                    }
-                }
-                console.warn('BCV Rate not found in HTML response')
-                resolve(FALLBACK_RATE)
-            })
-        })
-
-        req.on('error', (error: any) => {
-            console.error('Error fetching BCV rate (https):', error)
-            resolve(FALLBACK_RATE)
-        })
-
-        req.end()
+        resolve(FALLBACK_RATE)
+      })
     })
+    req.on('error', () => resolve(FALLBACK_RATE))
+    req.end()
+  })
+}
+ 
+// ── Obtener tasa del día (con persistencia) ────────────
+export async function getTodayRate(): Promise<number> {
+  const supabase = await createClient()
+  const today = new Date().toISOString().split('T')[0]
+ 
+  // 1. Buscar en BD primero
+  const { data: stored } = await supabase
+    .from('exchange_rates')
+    .select('rate_usd_ves')
+    .eq('date', today)
+    .maybeSingle()
+ 
+  if (stored) return stored.rate_usd_ves
+ 
+  // 2. No está en BD — hacer scraping y guardar
+  const rate = await scrapeBCVRate()
+  await supabase.from('exchange_rates').upsert({
+    date: today, rate_usd_ves: rate, source: 'BCV'
+  }, { onConflict: 'date' })
+ 
+  return rate
+}
+ 
+// ── Con caché de Next.js (revalida cada hora) ──────────
+export const getBCVRate = unstable_cache(
+  getTodayRate,
+  ['bcv-rate'],
+  { revalidate: 3600, tags: ['bcv-rate'] }
+)
+ 
+// ── Tasa de una fecha específica (para registros históricos)
+export async function getRateForDate(date: string): Promise<number> {
+  const supabase = await createClient()
+ 
+  const { data } = await supabase
+    .from('exchange_rates')
+    .select('rate_usd_ves')
+    .eq('date', date)
+    .maybeSingle()
+ 
+  // Si no hay tasa exacta, tomar la más cercana anterior
+  if (!data) {
+    const { data: closest } = await supabase
+      .from('exchange_rates')
+      .select('rate_usd_ves, date')
+      .lt('date', date)
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    return closest?.rate_usd_ves ?? FALLBACK_RATE
+  }
+ 
+  return data.rate_usd_ves
 }

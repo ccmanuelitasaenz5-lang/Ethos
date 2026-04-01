@@ -1,8 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createIncome, updateIncome } from '@/app/actions/income'
 import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { incomeSchema, IncomeFormValues } from '@/lib/validations/income'
+import { createIncome, updateIncome } from '@/app/actions/income'
+import { toast } from 'react-hot-toast'
 
 interface IncomeFormProps {
     initialRate?: number
@@ -13,97 +17,88 @@ interface IncomeFormProps {
 
 export default function IncomeForm({ initialRate, accounts = [], properties = [], initialData }: IncomeFormProps) {
     const router = useRouter()
-    const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
-    const [exchangeRate, setExchangeRate] = useState(initialData?.exchange_rate?.toString() || initialRate?.toString() || '')
-    const [amountUSD, setAmountUSD] = useState(initialData?.amount_usd?.toString() || '')
-    const [amountVES, setAmountVES] = useState(initialData?.amount_ves?.toString() || '')
-    const [status, setStatus] = useState(initialData?.status || 'draft')
+    const [status, setStatus] = useState<'draft' | 'finalized'>(initialData?.status === 'finalized' ? 'finalized' : 'draft')
 
-    // Bidirectional conversion
-    const handleUSDChange = (val: string) => {
-        setAmountUSD(val)
-        if (val && exchangeRate) {
-            const ves = (parseFloat(val) * parseFloat(exchangeRate)).toFixed(2)
-            setAmountVES(ves)
-        } else if (!val) {
-            setAmountVES('')
+    const {
+        register,
+        handleSubmit,
+        watch,
+        setValue,
+        formState: { errors }
+    } = useForm<IncomeFormValues>({
+        resolver: zodResolver(incomeSchema),
+        defaultValues: {
+            date: initialData?.date || new Date().toISOString().split('T')[0],
+            receipt_number: initialData?.receipt_number || '',
+            control_number: initialData?.control_number || '',
+            concept: initialData?.concept || '',
+            amount_usd: initialData?.amount_usd || 0,
+            exchange_rate: initialData?.exchange_rate || initialRate || 0,
+            payment_method: initialData?.payment_method || 'transferencia',
+            status: initialData?.status || 'draft',
+            property_id: initialData?.property_id || undefined,
+            account_code: initialData?.account_code || '',
+            bank_account: initialData?.bank_account || '',
         }
-    }
+    })
 
-    const handleVESChange = (val: string) => {
-        setAmountVES(val)
-        if (val && exchangeRate && parseFloat(exchangeRate) > 0) {
-            const usd = (parseFloat(val) / parseFloat(exchangeRate)).toFixed(2)
-            setAmountUSD(usd)
-        } else if (!val) {
-            setAmountUSD('')
-        }
-    }
+    const amountUSD = watch('amount_usd')
+    const exchangeRate = watch('exchange_rate')
 
-    const handleRateChange = (val: string) => {
-        setExchangeRate(val)
-        // If rate changes, re-calculate VES based on USD
-        if (amountUSD && val) {
-            const ves = (parseFloat(amountUSD) * parseFloat(val)).toFixed(2)
-            setAmountVES(ves)
-        }
-    }
+    // Derived value for VES (read-only in this version for simplicity, or we can add sync)
+    const amountVES = (amountUSD || 0) * (exchangeRate || 0)
 
-    async function handleSubmit(formData: FormData) {
+    async function onSubmit(data: IncomeFormValues) {
         setLoading(true)
-        setError(null)
+        
+        const formData = new FormData()
+        Object.entries(data).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+                formData.append(key, value.toString())
+            }
+        })
+        
+        // Ensure the correct status is sent based on which button was clicked
+        formData.set('status', status)
 
-        // Append status manually since it might not be a form input in some designs, 
-        // but here we will make it a submit button value or hidden input.
-        formData.append('status', status)
+        try {
+            const result = initialData?.id
+                ? await updateIncome(initialData.id, formData)
+                : await createIncome(formData)
 
-        if (status === 'finalized') {
-            // TODO: Integrate FiscalPrinterService here
-            // If using a local fiscal printer (IP based):
-            // const printer = new MockFiscalPrinter({ ip: '192.168.1.100' })
-            // const result = await printer.printInvoice({ ... })
-            // formData.append('fiscal_serial', result.fiscalSerial)
-        }
-
-        const result = initialData?.id
-            ? await updateIncome(initialData.id, formData)
-            : await createIncome(formData)
-
-        if (result?.error) {
-            setError(result.error)
+            if (result?.error) {
+                toast.error(result.error)
+            } else {
+                toast.success(initialData?.id ? 'Ingreso actualizado' : 'Ingreso creado')
+                router.push('/dashboard/ingresos')
+                router.refresh()
+            }
+        } catch (e) {
+            toast.error('Error al procesar la solicitud')
+        } finally {
             setLoading(false)
-        } else {
-            router.push('/dashboard/ingresos')
         }
     }
 
     return (
-        <form action={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
-                    <label htmlFor="date" className="block text-sm font-medium text-gray-700">
-                        Fecha *
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Fecha *</label>
                     <input
                         type="date"
-                        id="date"
-                        name="date"
-                        required
-                        defaultValue={new Date().toISOString().split('T')[0]}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
+                        {...register('date')}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     />
+                    {errors.date && <p className="mt-1 text-xs text-red-600">{errors.date.message}</p>}
                 </div>
 
                 <div>
-                    <label htmlFor="property_id" className="block text-sm font-medium text-gray-700">
-                        Inmueble / Unidad
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Inmueble / Unidad</label>
                     <select
-                        id="property_id"
-                        name="property_id"
-                        defaultValue={initialData?.property_id || ''}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
+                        {...register('property_id')}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     >
                         <option value="">Seleccionar...</option>
                         {properties.map(p => (
@@ -115,58 +110,41 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
                 </div>
 
                 <div>
-                    <label htmlFor="receipt_number" className="block text-sm font-medium text-gray-700">
-                        Número de Recibo
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Número de Recibo</label>
                     <input
                         type="text"
-                        id="receipt_number"
-                        name="receipt_number"
-                        defaultValue={initialData?.receipt_number || ''}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
+                        {...register('receipt_number')}
                         placeholder="REC-001"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     />
                 </div>
 
                 <div>
-                    <label htmlFor="control_number" className="block text-sm font-medium text-gray-700">
-                        Número de Control (Fiscal)
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Número de Control (Fiscal)</label>
                     <input
                         type="text"
-                        id="control_number"
-                        name="control_number"
-                        defaultValue={initialData?.control_number || ''}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
+                        {...register('control_number')}
                         placeholder="00-000000"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     />
                 </div>
 
                 <div className="sm:col-span-2">
-                    <label htmlFor="concept" className="block text-sm font-medium text-gray-700">
-                        Concepto *
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Concepto *</label>
                     <input
                         type="text"
-                        id="concept"
-                        name="concept"
-                        required
-                        defaultValue={initialData?.concept || ''}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
+                        {...register('concept')}
                         placeholder="Pago de condominio"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     />
+                    {errors.concept && <p className="mt-1 text-xs text-red-600">{errors.concept.message}</p>}
                 </div>
 
                 <div>
-                    <label htmlFor="account_code" className="block text-sm font-medium text-gray-700">
-                        Cuenta de Ingreso *
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Cuenta de Ingreso *</label>
                     <select
-                        id="account_code"
-                        name="account_code"
-                        required
-                        defaultValue={initialData?.account_code || ''}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
+                        {...register('account_code')}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     >
                         <option value="">Seleccionar cuenta...</option>
                         {accounts
@@ -178,18 +156,14 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
                             ))
                         }
                     </select>
+                    {errors.account_code && <p className="mt-1 text-xs text-red-600">{errors.account_code.message}</p>}
                 </div>
 
                 <div>
-                    <label htmlFor="bank_account" className="block text-sm font-medium text-gray-700">
-                        Cuenta de Destino (Banco/Caja) *
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Cuenta de Destino *</label>
                     <select
-                        id="bank_account"
-                        name="bank_account"
-                        required
-                        defaultValue={initialData?.bank_account || ''}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
+                        {...register('bank_account')}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     >
                         <option value="">Seleccionar banco/caja...</option>
                         {accounts
@@ -201,117 +175,91 @@ export default function IncomeForm({ initialRate, accounts = [], properties = []
                             ))
                         }
                     </select>
+                    {errors.bank_account && <p className="mt-1 text-xs text-red-600">{errors.bank_account.message}</p>}
                 </div>
 
-                {/* Monto USD */}
                 <div>
-                    <label htmlFor="amount_usd" className="block text-sm font-medium text-gray-700">
-                        Monto USD
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Monto USD *</label>
                     <div className="mt-1 relative rounded-lg shadow-sm">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <span className="text-gray-500 sm:text-sm">$</span>
                         </div>
                         <input
                             type="number"
-                            id="amount_usd"
-                            name="amount_usd"
                             step="0.01"
-                            value={amountUSD}
-                            onChange={(e) => handleUSDChange(e.target.value)}
-                            className="block w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
+                            {...register('amount_usd')}
+                            className="block w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                             placeholder="0.00"
                         />
                     </div>
+                    {errors.amount_usd && <p className="mt-1 text-xs text-red-600">{errors.amount_usd.message}</p>}
                 </div>
 
-                {/* Monto VES */}
                 <div>
-                    <label htmlFor="amount_ves" className="block text-sm font-medium text-gray-700">
-                        Monto Bolívares (VES)
-                    </label>
-                    <div className="mt-1 relative rounded-lg shadow-sm">
+                    <label className="block text-sm font-medium text-gray-700">Equivalente en Bolívares (VES)</label>
+                    <div className="mt-1 relative rounded-lg shadow-sm bg-gray-50">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <span className="text-gray-500 sm:text-sm">Bs.</span>
+                            <span className="text-gray-400 sm:text-sm">Bs.</span>
                         </div>
                         <input
-                            type="number"
-                            id="amount_ves"
-                            name="amount_ves"
-                            step="0.01"
-                            value={amountVES}
-                            onChange={(e) => handleVESChange(e.target.value)}
-                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
-                            placeholder="0.00"
+                            type="text"
+                            value={amountVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            readOnly
+                            className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label htmlFor="exchange_rate" className="block text-sm font-medium text-gray-700">
-                        Tasa BCV Aplicada
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Tasa BCV Aplicada *</label>
                     <input
                         type="number"
-                        id="exchange_rate"
-                        name="exchange_rate"
                         step="0.0001"
-                        value={exchangeRate}
-                        onChange={(e) => handleRateChange(e.target.value)}
-                        className="mt-1 block w-full px-3 py-2 border border-blue-200 bg-blue-50 text-blue-900 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 font-bold"
-                        placeholder="0.0000"
+                        {...register('exchange_rate')}
+                        className="mt-1 block w-full px-3 py-2 border border-blue-200 bg-blue-50 text-blue-900 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-bold"
                     />
-                    <p className="mt-1 text-xs text-blue-600 font-medium">Referencia oficial del Banco Central</p>
+                    {errors.exchange_rate && <p className="mt-1 text-xs text-red-600">{errors.exchange_rate.message}</p>}
                 </div>
 
                 <div>
-                    <label htmlFor="payment_method" className="block text-sm font-medium text-gray-700">
-                        Método de Pago
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Método de Pago *</label>
                     <select
-                        id="payment_method"
-                        name="payment_method"
-                        defaultValue={initialData?.payment_method || ''}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-gray-900"
+                        {...register('payment_method')}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-gray-900"
                     >
-                        <option value="">Seleccionar...</option>
                         <option value="efectivo">Efectivo</option>
                         <option value="transferencia">Transferencia</option>
                         <option value="pago_movil">Pago Móvil</option>
                         <option value="cheque">Cheque</option>
                         <option value="tarjeta">Tarjeta</option>
                     </select>
+                    {errors.payment_method && <p className="mt-1 text-xs text-red-600">{errors.payment_method.message}</p>}
                 </div>
             </div>
 
-            {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                    {error}
-                </div>
-            )}
-
-            <div className="flex justify-end space-x-3">
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100">
                 <button
                     type="button"
                     onClick={() => router.back()}
-                    className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                    className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                 >
                     Cancelar
                 </button>
                 <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+                    onClick={() => setStatus('draft')}
+                    className="px-6 py-2 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
                 >
-                    {loading ? 'Procesando...' : 'Guardar Borrador'}
+                    {loading && status === 'draft' ? 'Procesando...' : 'Guardar Borrador'}
                 </button>
                 <button
                     type="submit"
                     disabled={loading}
                     onClick={() => setStatus('finalized')}
-                    className="px-6 py-2 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                    className="px-6 py-2 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                 >
-                    {loading ? 'Procesando...' : 'Finalizar y Fiscalizar'}
+                    {loading && status === 'finalized' ? 'Procesando...' : 'Finalizar y Fiscalizar'}
                 </button>
             </div>
         </form>

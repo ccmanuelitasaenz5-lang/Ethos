@@ -1,146 +1,172 @@
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { TransactionIncome, TransactionExpense } from '@/types/database'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
-export function exportIncomeToExcel(incomes: TransactionIncome[], organizationName: string) {
-    // Preparar datos para Excel
-    const data = incomes.map(income => ({
-        'Fecha': format(new Date(income.date), 'dd/MM/yyyy', { locale: es }),
-        'Recibo #': income.receipt_number || '-',
-        'Concepto': income.concept,
-        'Monto USD': income.amount_usd || 0,
-        'Monto VES': income.amount_ves || 0,
-        'Tasa de Cambio': income.exchange_rate || '-',
-        'Método de Pago': income.payment_method?.replace('_', ' ') || '-',
-        'Código de Cuenta': income.account_code || '-',
-    }))
+export async function exportIncomeToExcel(incomes: TransactionIncome[], organizationName: string) {
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Ingresos')
 
-    // Crear workbook
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.json_to_sheet(data)
-
-    // Ajustar ancho de columnas
-    const colWidths = [
-        { wch: 12 }, // Fecha
-        { wch: 12 }, // Recibo #
-        { wch: 40 }, // Concepto
-        { wch: 15 }, // Monto USD
-        { wch: 15 }, // Monto VES
-        { wch: 15 }, // Tasa
-        { wch: 18 }, // Método
-        { wch: 15 }, // Código
+    // Define columns
+    worksheet.columns = [
+        { header: 'Fecha', key: 'date', width: 15 },
+        { header: 'Recibo #', key: 'receipt_number', width: 15 },
+        { header: 'Concepto', key: 'concept', width: 40 },
+        { header: 'Monto USD', key: 'amount_usd', width: 15 },
+        { header: 'Monto VES', key: 'amount_ves', width: 15 },
+        { header: 'Tasa de Cambio', key: 'exchange_rate', width: 15 },
+        { header: 'Método de Pago', key: 'payment_method', width: 20 },
+        { header: 'Código de Cuenta', key: 'account_code', width: 15 },
     ]
-    ws['!cols'] = colWidths
 
-    // Agregar hoja al workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Ingresos')
+    // Add rows
+    incomes.forEach(income => {
+        worksheet.addRow({
+            date: format(new Date(income.date), 'dd/MM/yyyy', { locale: es }),
+            receipt_number: income.receipt_number || '-',
+            concept: income.concept,
+            amount_usd: income.amount_usd || 0,
+            amount_ves: income.amount_ves || 0,
+            exchange_rate: income.exchange_rate || '-',
+            payment_method: income.payment_method?.replace('_', ' ') || '-',
+            account_code: income.account_code || '-',
+        })
+    })
 
-    // Generar archivo
-    const fileName = `Ingresos_${organizationName}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
-    XLSX.writeFile(wb, fileName)
+    // Style header
+    worksheet.getRow(1).font = { bold: true }
+
+    // Generate buffer
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = window.URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `Ingresos_${organizationName}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+    anchor.click()
+    window.URL.revokeObjectURL(url)
 }
 
-export function exportExpenseToExcel(expenses: TransactionExpense[], organizationName: string) {
-    // Preparar datos para Excel
-    const data = expenses.map(expense => ({
-        'Fecha': format(new Date(expense.date), 'dd/MM/yyyy', { locale: es }),
-        'Factura #': expense.invoice_number || '-',
-        'Proveedor': expense.supplier,
-        'Concepto': expense.concept,
-        'Categoría': expense.category || '-',
-        'Subtotal USD': expense.subtotal || 0,
-        'IVA %': expense.iva_percentage || 0,
-        'IVA USD': expense.iva_amount || 0,
-        'Total USD': expense.amount_usd || 0,
-        'Total VES': expense.amount_ves || 0,
-        'Retención IVA': expense.retention_iva || 0,
-        'Retención ISLR': expense.retention_islr || 0,
-        'Método de Pago': expense.payment_method?.replace('_', ' ') || '-',
-    }))
+export async function exportExpenseToExcel(expenses: TransactionExpense[], organizationName: string) {
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Gastos')
 
-    // Crear workbook
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.json_to_sheet(data)
-
-    // Ajustar ancho de columnas
-    const colWidths = [
-        { wch: 12 }, // Fecha
-        { wch: 12 }, // Factura #
-        { wch: 25 }, // Proveedor
-        { wch: 35 }, // Concepto
-        { wch: 15 }, // Categoría
-        { wch: 15 }, // Subtotal
-        { wch: 10 }, // IVA %
-        { wch: 12 }, // IVA USD
-        { wch: 15 }, // Total USD
-        { wch: 15 }, // Total VES
-        { wch: 15 }, // Ret IVA
-        { wch: 15 }, // Ret ISLR
-        { wch: 18 }, // Método
+    worksheet.columns = [
+        { header: 'Fecha', key: 'date', width: 15 },
+        { header: 'Factura #', key: 'invoice_number', width: 15 },
+        { header: 'Proveedor', key: 'supplier', width: 30 },
+        { header: 'Concepto', key: 'concept', width: 40 },
+        { header: 'Categoría', key: 'category', width: 20 },
+        { header: 'Subtotal USD', key: 'subtotal', width: 15 },
+        { header: 'IVA %', key: 'iva_percentage', width: 10 },
+        { header: 'IVA USD', key: 'iva_amount', width: 15 },
+        { header: 'Total USD', key: 'amount_usd', width: 15 },
+        { header: 'Total VES', key: 'amount_ves', width: 15 },
+        { header: 'Retención IVA', key: 'retention_iva', width: 15 },
+        { header: 'Retención ISLR', key: 'retention_islr', width: 15 },
+        { header: 'Método de Pago', key: 'payment_method', width: 20 },
     ]
-    ws['!cols'] = colWidths
 
-    // Agregar hoja al workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Gastos')
+    expenses.forEach(expense => {
+        worksheet.addRow({
+            date: format(new Date(expense.date), 'dd/MM/yyyy', { locale: es }),
+            invoice_number: expense.invoice_number || '-',
+            supplier: expense.supplier,
+            concept: expense.concept,
+            category: expense.category || '-',
+            subtotal: expense.subtotal || 0,
+            iva_percentage: expense.iva_percentage || 0,
+            iva_amount: expense.iva_amount || 0,
+            amount_usd: expense.amount_usd || 0,
+            amount_ves: expense.amount_ves || 0,
+            retention_iva: expense.retention_iva || 0,
+            retention_islr: expense.retention_islr || 0,
+            payment_method: expense.payment_method?.replace('_', ' ') || '-',
+        })
+    })
 
-    // Generar archivo
-    const fileName = `Gastos_${organizationName}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
-    XLSX.writeFile(wb, fileName)
+    worksheet.getRow(1).font = { bold: true }
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = window.URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `Gastos_${organizationName}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+    anchor.click()
+    window.URL.revokeObjectURL(url)
 }
 
-export function exportFinancialSummary(
+export async function exportFinancialSummary(
     incomes: TransactionIncome[],
     expenses: TransactionExpense[],
     organizationName: string
 ) {
-    const wb = XLSX.utils.book_new()
+    const workbook = new ExcelJS.Workbook()
+    
+    // Summary Sheet
+    const wsSummary = workbook.addWorksheet('Resumen')
+    wsSummary.columns = [
+        { header: 'Concepto', key: 'concept', width: 30 },
+        { header: 'Monto USD', key: 'amount', width: 20 }
+    ]
 
-    // Hoja 1: Resumen
     const totalIncome = incomes.reduce((sum, t) => sum + (t.amount_usd || 0), 0)
     const totalExpense = expenses.reduce((sum, t) => sum + (t.amount_usd || 0), 0)
     const balance = totalIncome - totalExpense
 
-    const summaryData = [
-        { 'Concepto': 'Total Ingresos', 'Monto USD': totalIncome },
-        { 'Concepto': 'Total Gastos', 'Monto USD': totalExpense },
-        { 'Concepto': 'Balance', 'Monto USD': balance },
+    wsSummary.addRows([
+        { concept: 'Total Ingresos', amount: totalIncome },
+        { concept: 'Total Gastos', amount: totalExpense },
+        { concept: 'Balance', amount: balance },
         {},
-        { 'Concepto': 'Número de Ingresos', 'Monto USD': incomes.length },
-        { 'Concepto': 'Número de Gastos', 'Monto USD': expenses.length },
+        { concept: 'Número de Ingresos', amount: incomes.length },
+        { concept: 'Número de Gastos', amount: expenses.length },
+    ])
+    wsSummary.getRow(1).font = { bold: true }
+
+    // Income Sheet
+    const wsIncome = workbook.addWorksheet('Ingresos')
+    wsIncome.columns = [
+        { header: 'Fecha', key: 'date', width: 15 },
+        { header: 'Recibo #', key: 'receipt_number', width: 15 },
+        { header: 'Concepto', key: 'concept', width: 40 },
+        { header: 'Monto USD', key: 'amount_usd', width: 15 },
+        { header: 'Monto VES', key: 'amount_ves', width: 15 },
     ]
-
-    const wsSummary = XLSX.utils.json_to_sheet(summaryData)
-    wsSummary['!cols'] = [{ wch: 25 }, { wch: 20 }]
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen')
-
-    // Hoja 2: Ingresos
-    const incomeData = incomes.map(income => ({
-        'Fecha': format(new Date(income.date), 'dd/MM/yyyy', { locale: es }),
-        'Recibo #': income.receipt_number || '-',
-        'Concepto': income.concept,
-        'Monto USD': income.amount_usd || 0,
-        'Monto VES': income.amount_ves || 0,
+    incomes.forEach(i => wsIncome.addRow({
+        date: format(new Date(i.date), 'dd/MM/yyyy', { locale: es }),
+        receipt_number: i.receipt_number || '-',
+        concept: i.concept,
+        amount_usd: i.amount_usd || 0,
+        amount_ves: i.amount_ves || 0
     }))
+    wsIncome.getRow(1).font = { bold: true }
 
-    const wsIncome = XLSX.utils.json_to_sheet(incomeData)
-    wsIncome['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 40 }, { wch: 15 }, { wch: 15 }]
-    XLSX.utils.book_append_sheet(wb, wsIncome, 'Ingresos')
-
-    // Hoja 3: Gastos
-    const expenseData = expenses.map(expense => ({
-        'Fecha': format(new Date(expense.date), 'dd/MM/yyyy', { locale: es }),
-        'Factura #': expense.invoice_number || '-',
-        'Proveedor': expense.supplier,
-        'Concepto': expense.concept,
-        'Total USD': expense.amount_usd || 0,
+    // Expense Sheet
+    const wsExpense = workbook.addWorksheet('Gastos')
+    wsExpense.columns = [
+        { header: 'Fecha', key: 'date', width: 15 },
+        { header: 'Factura #', key: 'invoice_number', width: 15 },
+        { header: 'Proveedor', key: 'supplier', width: 30 },
+        { header: 'Concepto', key: 'concept', width: 40 },
+        { header: 'Total USD', key: 'amount_usd', width: 15 }
+    ]
+    expenses.forEach(e => wsExpense.addRow({
+        date: format(new Date(e.date), 'dd/MM/yyyy', { locale: es }),
+        invoice_number: e.invoice_number || '-',
+        supplier: e.supplier,
+        concept: e.concept,
+        amount_usd: e.amount_usd || 0
     }))
+    wsExpense.getRow(1).font = { bold: true }
 
-    const wsExpense = XLSX.utils.json_to_sheet(expenseData)
-    wsExpense['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 25 }, { wch: 35 }, { wch: 15 }]
-    XLSX.utils.book_append_sheet(wb, wsExpense, 'Gastos')
-
-    // Generar archivo
-    const fileName = `Resumen_Financiero_${organizationName}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
-    XLSX.writeFile(wb, fileName)
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = window.URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `Resumen_Financiero_${organizationName}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+    anchor.click()
+    window.URL.revokeObjectURL(url)
 }

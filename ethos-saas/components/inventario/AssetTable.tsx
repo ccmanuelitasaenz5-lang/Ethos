@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Asset } from '@/types/database'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -19,6 +19,10 @@ interface AssetTableProps {
     totalItems: number
     currentPage: number
     itemsPerPage: number
+    filters: {
+        status: string
+        category: string
+    }
 }
 
 export default function AssetTable({
@@ -26,13 +30,11 @@ export default function AssetTable({
     organizationName = 'Organización',
     totalItems,
     currentPage,
-    itemsPerPage
+    itemsPerPage,
+    filters
 }: AssetTableProps) {
     const router = useRouter()
-    const searchParams = useSearchParams()
     const [deleting, setDeleting] = useState<string | null>(null)
-    const [filterStatus, setFilterStatus] = useState<string>('all')
-    const [filterCategory, setFilterCategory] = useState<string>('all')
 
     const totalPages = getTotalPages(totalItems, itemsPerPage)
 
@@ -51,24 +53,37 @@ export default function AssetTable({
         }
     }
 
+    function updateFilters(newFilters: Partial<typeof filters>) {
+        const params = new URLSearchParams(window.location.search)
+        Object.entries(newFilters).forEach(([key, value]) => {
+            if (value === 'all') {
+                params.delete(key)
+            } else {
+                params.set(key, value as string)
+            }
+        })
+        params.set('page', '1') // Reset to first page on filter change
+        router.push(`/dashboard/inventario?${params.toString()}`)
+    }
+
     function handlePageChange(page: number) {
-        const params = new URLSearchParams(searchParams.toString())
+        const params = new URLSearchParams(window.location.search)
         params.set('page', page.toString())
         router.push(`/dashboard/inventario?${params.toString()}`)
     }
 
     async function handleStatusChange(id: string, status: 'active' | 'inactive' | 'disposed') {
-        await updateAssetStatus(id, status)
+        const result = await updateAssetStatus(id, status)
+        if (result?.error) {
+            toast.error(result.error)
+        } else {
+            toast.success('Estado actualizado')
+            router.refresh()
+        }
     }
 
-    const filteredAssets = assets.filter(asset => {
-        const matchesStatus = filterStatus === 'all' || asset.status === filterStatus
-        const matchesCat = filterCategory === 'all' || asset.category === filterCategory
-        return matchesStatus && matchesCat
-    })
-
     function handleExport() {
-        const data = filteredAssets.map(asset => {
+        const data = assets.map(asset => {
             const netValue = (asset.cost_usd || 0) - (asset.accumulated_depreciation || 0)
             return {
                 'Nombre': asset.name,
@@ -94,16 +109,18 @@ export default function AssetTable({
         window.print()
     }
 
+    // Categories extraction should ideally happen on the server or be passed as props
+    // For now, we'll use "all" or specific ones from the data.
     const categories = Array.from(new Set(assets.map(a => a.category).filter(Boolean)))
 
     return (
-        <div className="bg-white shadow-lg rounded-xl overflow-hidden">
+        <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100">
             <PrintHeader title="Inventario de Activos Fijos" organizationName={organizationName} />
             <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4 no-print bg-gray-50/50">
                 <div className="flex flex-wrap items-center gap-3">
                     <select
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
+                        value={filters.status}
+                        onChange={(e) => updateFilters({ status: e.target.value })}
                         className="text-xs border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white"
                     >
                         <option value="all">Todos los estados</option>
@@ -112,8 +129,8 @@ export default function AssetTable({
                         <option value="disposed">Dados de baja</option>
                     </select>
                     <select
-                        value={filterCategory}
-                        onChange={(e) => setFilterCategory(e.target.value)}
+                        value={filters.category}
+                        onChange={(e) => updateFilters({ category: e.target.value })}
                         className="text-xs border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white"
                     >
                         <option value="all">Todas las categorías</option>
@@ -122,7 +139,7 @@ export default function AssetTable({
                         ))}
                     </select>
                     <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                        {filteredAssets.length} activos
+                        {totalItems} activos totales
                     </span>
                 </div>
 
@@ -147,38 +164,24 @@ export default function AssetTable({
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Nombre
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Categoría
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Costo USD
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Depreciación
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Valor Neto
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Estado
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Acciones
-                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoría</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Costo USD</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Depreciación</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Neto</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredAssets.length === 0 ? (
+                        {assets.length === 0 ? (
                             <tr>
                                 <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                                     No hay activos que coincidan con los filtros
                                 </td>
                             </tr>
                         ) : (
-                            filteredAssets.map((asset) => {
+                            assets.map((asset) => {
                                 const netValue = (asset.cost_usd || 0) - (asset.accumulated_depreciation || 0)
                                 const depreciationPercent = asset.cost_usd ? ((asset.accumulated_depreciation || 0) / asset.cost_usd) * 100 : 0
 

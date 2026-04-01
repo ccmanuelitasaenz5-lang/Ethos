@@ -17,10 +17,10 @@ export async function logSecurityEvent(
     }
 ) {
     try {
-        const supabase = createClient()
+        const supabase = await createClient()
 
         // Get IP address from headers
-        const headersList = headers()
+        const headersList = await headers()
         // x-forwarded-for can be comma separated, take the first one
         const ip = headersList.get('x-forwarded-for')?.split(',')[0] || 'unknown'
 
@@ -56,8 +56,8 @@ export async function isRateLimited(
     windowMinutes: number = 15
 ): Promise<boolean> {
     try {
-        const supabase = createClient()
-        const headersList = headers()
+        const supabase = await createClient()
+        const headersList = await headers()
         const ip = headersList.get('x-forwarded-for')?.split(',')[0] || 'unknown'
 
         // Call the database function defined in migration 006

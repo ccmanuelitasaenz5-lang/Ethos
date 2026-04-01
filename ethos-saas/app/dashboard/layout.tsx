@@ -44,7 +44,7 @@ export default async function DashboardLayout({
                     id: user.id,
                     organization_id: firstOrg.id,
                     full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuario',
-                    role: 'admin'
+                    role: 'resident' // Changed from 'admin' for security (technical audit finding 3.2)
                 })
                 .select('organization_id, full_name')
                 .single()

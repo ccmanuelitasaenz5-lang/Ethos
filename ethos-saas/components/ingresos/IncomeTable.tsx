@@ -1,164 +1,80 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { TransactionIncome } from '@/types/database'
+import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { TrashIcon, ArrowDownTrayIcon, PrinterIcon, PencilIcon } from '@heroicons/react/24/outline'
+import { 
+    PencilIcon, 
+    TrashIcon,
+} from '@heroicons/react/24/outline'
 import Link from 'next/link'
-import { deleteIncome } from '@/app/actions/income'
-import { exportIncomeToExcel } from '@/lib/export/excel'
-import PrintHeader from '@/components/layout/PrintHeader'
-import Pagination from '@/components/shared/Pagination'
-import EmptyState from '@/components/shared/EmptyState'
-import { toast } from 'react-hot-toast'
-import { getTotalPages } from '@/lib/pagination'
+import toast from 'react-hot-toast'
 
 interface IncomeTableProps {
-    incomes: TransactionIncome[]
-    organizationName?: string
-    totalItems: number
-    currentPage: number
-    itemsPerPage: number
+    incomes: any[]
+    organizationId?: string
+    isLoading?: boolean
 }
 
-export default function IncomeTable({
-    incomes,
-    organizationName = 'Organización',
-    totalItems,
-    currentPage,
-    itemsPerPage
-}: IncomeTableProps) {
-    const router = useRouter()
-    const searchParams = useSearchParams()
+export default function IncomeTable({ incomes, isLoading }: IncomeTableProps) {
     const [deleting, setDeleting] = useState<string | null>(null)
-    const [filterMethod, setFilterMethod] = useState<string>('all')
-    const [minAmount, setMinAmount] = useState<string>('')
 
-    const totalPages = getTotalPages(totalItems, itemsPerPage)
-
-    async function handleDelete(id: string) {
-        if (!confirm('¿Estás seguro de eliminar este ingreso?')) return
+    const handleDelete = async (id: string) => {
+        if (!confirm('¿Estás seguro de que deseas eliminar este ingreso?')) return
 
         setDeleting(id)
-        const result = await deleteIncome(id)
-        setDeleting(null)
+        try {
+            const supabase = createClient()
+            const { error } = await supabase
+                .from('transactions_income')
+                .update({ 
+                    deleted_at: new Date().toISOString(),
+                })
+                .eq('id', id)
 
-        if (result?.error) {
-            toast.error(result.error)
-        } else {
+            if (error) throw error
             toast.success('Ingreso eliminado correctamente')
-            router.refresh()
+            // Refresh logic should be handled by the parent or router.refresh()
+            window.location.reload() 
+        } catch (error) {
+            console.error('Error deleting income:', error)
+            toast.error('Error al eliminar el ingreso')
+        } finally {
+            setDeleting(null)
         }
     }
 
-    function handlePageChange(page: number) {
-        const params = new URLSearchParams(searchParams.toString())
-        params.set('page', page.toString())
-        router.push(`/dashboard/ingresos?${params.toString()}`)
-    }
-
-    const filteredIncomes = incomes.filter(income => {
-        const matchesMethod = filterMethod === 'all' || income.payment_method === filterMethod
-        const matchesAmount = minAmount === '' || (income.amount_usd || 0) >= parseFloat(minAmount)
-        return matchesMethod && matchesAmount
-    })
-
-    function handleExport() {
-        exportIncomeToExcel(filteredIncomes, organizationName)
-    }
-
-    function handlePrint() {
-        window.print()
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+        )
     }
 
     return (
-        <div className="bg-white shadow-lg rounded-xl overflow-hidden">
-            <PrintHeader title="Reporte de Ingresos" organizationName={organizationName} />
-
-            <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4 no-print bg-gray-50/50">
-                <div className="flex flex-wrap items-center gap-3">
-                    <select
-                        value={filterMethod}
-                        onChange={(e) => setFilterMethod(e.target.value)}
-                        className="text-xs border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white"
-                    >
-                        <option value="all">Todos los métodos</option>
-                        <option value="efectivo">Efectivo</option>
-                        <option value="transferencia">Transferencia</option>
-                        <option value="pago_movil">Pago Móvil</option>
-                    </select>
-                    <input
-                        type="number"
-                        placeholder="Monto min $"
-                        value={minAmount}
-                        onChange={(e) => setMinAmount(e.target.value)}
-                        className="text-xs border-gray-300 rounded-lg w-24 focus:ring-primary-500 focus:border-primary-500 bg-white"
-                    />
-                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                        {filteredIncomes.length} resultados
-                    </span>
-                </div>
-
-                <div className="flex space-x-2">
-                    <button
-                        onClick={handlePrint}
-                        className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                    >
-                        <PrinterIcon className="h-4 w-4 mr-2 text-gray-500" />
-                        PDF
-                    </button>
-                    <button
-                        onClick={handleExport}
-                        className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                    >
-                        <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                        Excel
-                    </button>
-                </div>
-            </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Fecha
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Recibo #
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                N° Control
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Concepto
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Monto USD
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Monto VES
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Método de Pago
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Estatus
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Acciones
-                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nº Recibo</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nº Control</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Concepto</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monto USD</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monto VES</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Método</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {incomes.length === 0 ? (
                             <tr>
-                                <td colSpan={9} className="px-6 py-8">
-                                    <EmptyState
-                                        title="No hay ingresos registrados"
-                                        message="Comienza agregando tu primer ingreso usando el botón 'Nuevo Ingreso'"
-                                    />
+                                <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                                    No se encontraron ingresos.
                                 </td>
                             </tr>
                         ) : (
@@ -219,16 +135,6 @@ export default function IncomeTable({
                     </tbody>
                 </table>
             </div>
-
-            {totalPages > 1 && (
-                <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    totalItems={totalItems}
-                    itemsPerPage={itemsPerPage}
-                    onPageChange={handlePageChange}
-                />
-            )}
         </div>
     )
 }

@@ -160,9 +160,10 @@ export async function signup(formData: FormData) {
         error: `Error al vincular el perfil: ${userError.message}. Por favor, intenta nuevamente.`,
       };
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error("Signup error:", err);
-    return { error: `Error del sistema: ${err.message}` };
+    const message = err instanceof Error ? err.message : "Error desconocido";
+    return { error: `Error del sistema: ${message}` };
   }
 
   revalidatePath("/", "layout");

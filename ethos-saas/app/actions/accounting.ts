@@ -224,6 +224,8 @@ export async function seedDefaultAccounts(organizationId: string) {
       .eq("organization_id", organizationId)
       .eq("code", acc.code)
       .maybeSingle();
+    
+    // Optimizamos la consulta de validación (technical audit finding 6.1)
 
     if (checkError) {
       console.error(`Error al verificar cuenta ${acc.code}:`, checkError);
@@ -409,7 +411,7 @@ export async function deleteAccount(id: string) {
   if (account) {
     const { count } = await supabase
       .from("journal_entries")
-      .select("*", { count: "exact", head: true })
+      .select("id", { count: "exact", head: true })
       .eq("organization_id", account.organization_id)
       .eq("account_code", account.code);
 

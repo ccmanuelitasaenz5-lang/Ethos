@@ -2,61 +2,43 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import IncomeTable from '@/components/ingresos/IncomeTable'
-import { getPaginationParams, getOffset } from '@/lib/pagination'
+import { TransactionIncome } from '@/types/database'
 
-interface IngresosPageProps {
-    searchParams: { page?: string; limit?: string }
-}
-
-export default async function IngresosPage({ searchParams }: IngresosPageProps) {
+export default async function IngresosPage({
+    searchParams
+}: {
+    searchParams: { [key: string]: string | string[] | undefined }
+}) {
     const supabase = await createClient()
-
     const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return null
 
     const { data: userData } = await supabase
         .from('users')
         .select('organization_id')
-        .eq('id', user?.id)
-        .maybeSingle()
+        .eq('id', user.id)
+        .single()
 
     const organizationId = userData?.organization_id
+    if (!organizationId) return null
 
-    // Get organization name (only if organizationId exists)
-    let orgName = 'Organización'
-    if (organizationId) {
-        const { data: orgData } = await supabase
-            .from('organizations')
-            .select('name')
-            .eq('id', organizationId)
-            .maybeSingle()
-        if (orgData) orgName = orgData.name
+    // Get filter from searchParams
+    const status = (searchParams.status as string) || 'all'
+
+    // Query builder
+    let query = supabase
+        .from('active_income')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .order('date', { ascending: false })
+
+    if (status !== 'all') {
+        query = query.eq('status', status)
     }
 
-    // Paginación
-    const page = parseInt(searchParams.page || '1', 10)
-    const limit = parseInt(searchParams.limit || '10', 10)
-    const { page: normalizedPage, limit: normalizedLimit } = getPaginationParams(page, limit)
-    const offset = getOffset(normalizedPage, normalizedLimit)
-
-    // Obtener total de registros
-    const { count } = organizationId
-        ? await supabase
-            .from('transactions_income')
-            .select('*', { count: 'exact', head: true })
-            .eq('organization_id', organizationId)
-        : { count: 0 }
-
-    const totalItems = count || 0
-
-    // Obtener ingresos con paginación
-    const { data: incomes } = organizationId
-        ? await supabase
-            .from('transactions_income')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .order('date', { ascending: false })
-            .range(offset, offset + normalizedLimit - 1)
-        : { data: [] }
+    const { data: incomesData } = await query
+    const incomes = (incomesData as unknown as TransactionIncome[]) || []
 
     return (
         <div className="space-y-6">
@@ -67,21 +49,42 @@ export default async function IngresosPage({ searchParams }: IngresosPageProps) 
                         Gestión de recibos y entradas de dinero
                     </p>
                 </div>
-                <Link
-                    href="/dashboard/ingresos/nuevo"
-                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
-                >
-                    <PlusIcon className="h-5 w-5 mr-2" />
-                    Nuevo Ingreso
-                </Link>
+                <div className="flex items-center space-x-4">
+                    {/* Status Filter */}
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                        <Link
+                            href="/dashboard/ingresos?status=all"
+                            className={`px-3 py-1 text-xs font-medium rounded-md ${status === 'all' ? 'bg-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Todos
+                        </Link>
+                        <Link
+                            href="/dashboard/ingresos?status=draft"
+                            className={`px-3 py-1 text-xs font-medium rounded-md ${status === 'draft' ? 'bg-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Borradores
+                        </Link>
+                        <Link
+                            href="/dashboard/ingresos?status=finalized"
+                            className={`px-3 py-1 text-xs font-medium rounded-md ${status === 'finalized' ? 'bg-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Finalizados
+                        </Link>
+                    </div>
+
+                    <Link
+                        href="/dashboard/ingresos/nuevo"
+                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
+                    >
+                        <PlusIcon className="h-5 w-5 mr-2" />
+                        Nuevo Ingreso
+                    </Link>
+                </div>
             </div>
 
             <IncomeTable 
-                incomes={incomes || []} 
-                organizationName={orgName}
-                totalItems={totalItems}
-                currentPage={normalizedPage}
-                itemsPerPage={normalizedLimit}
+                incomes={incomes} 
+                organizationId={organizationId}
             />
         </div>
     )

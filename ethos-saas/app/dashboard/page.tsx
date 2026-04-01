@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getDashboardStats } from '@/lib/services/dashboard'
 import StatsCards from '@/components/dashboard/StatsCards'
 import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import FinancialCharts from '@/components/dashboard/FinancialCharts'
@@ -19,30 +20,11 @@ export default async function DashboardPage() {
 
     const organizationId = userData?.organization_id
 
-    // Get financial stats (only if organizationId exists)
-    let incomeData: any[] = []
-    let expenseData: any[] = []
-    let bankAccounts: any[] = []
+    // Get financial stats via cached service
+    const { incomeData, expenseData, bankAccounts } = organizationId 
+        ? await getDashboardStats(organizationId)
+        : { incomeData: [], expenseData: [], bankAccounts: [] }
 
-    if (organizationId) {
-        const { data: inc } = await supabase
-            .from('transactions_income')
-            .select('amount_usd, amount_ves, date')
-            .eq('organization_id', organizationId)
-        incomeData = inc || []
-
-        const { data: exp } = await supabase
-            .from('transactions_expense')
-            .select('amount_usd, amount_ves, date, category')
-            .eq('organization_id', organizationId)
-        expenseData = exp || []
-
-        const { data: accounts } = await supabase
-            .from('bank_accounts')
-            .select('current_balance, currency')
-            .eq('organization_id', organizationId)
-        bankAccounts = accounts || []
-    }
 
     // Calculate totals for cards (USD and VES)
     const totalIncomeUSD = incomeData.reduce((sum, t) => sum + (t.amount_usd || 0), 0)

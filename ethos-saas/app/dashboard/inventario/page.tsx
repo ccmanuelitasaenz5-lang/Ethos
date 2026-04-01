@@ -2,68 +2,67 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import AssetTable from '@/components/inventario/AssetTable'
+import { Asset } from '@/types/database'
 
 const ITEMS_PER_PAGE = 10
 
-interface PageProps {
-    searchParams: Promise<{ page?: string }>
-}
-
-export default async function InventarioPage({ searchParams }: PageProps) {
-    const params = await searchParams
-    const currentPage = Number(params.page) || 1
+export default async function InventarioPage({
+    searchParams
+}: {
+    searchParams: { [key: string]: string | string[] | undefined }
+}) {
+    const currentPage = Number(searchParams.page) || 1
     const offset = (currentPage - 1) * ITEMS_PER_PAGE
+    const status = (searchParams.status as string) || 'all'
+    const category = (searchParams.category as string) || 'all'
 
     const supabase = await createClient()
-
     const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return null
 
     const { data: userData } = await supabase
         .from('users')
         .select('organization_id')
-        .eq('id', user?.id)
-        .maybeSingle()
+        .eq('id', user.id)
+        .single()
 
     const organizationId = userData?.organization_id
+    if (!organizationId) return null
 
-    // Get organization name (only if organizationId exists)
-    let orgName = 'Organización'
-    if (organizationId) {
-        const { data: orgData } = await supabase
-            .from('organizations')
-            .select('name')
-            .eq('id', organizationId)
-            .maybeSingle()
-        if (orgData) orgName = orgData.name
+    // Get organization name
+    const { data: orgData } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', organizationId)
+        .single()
+    const orgName = orgData?.name || 'Organización'
+
+    // Query builder for filtered assets
+    let query = supabase
+        .from('active_inventory') // Using the new view
+        .select('*', { count: 'exact' })
+        .eq('organization_id', organizationId)
+
+    if (status !== 'all') {
+        query = query.eq('status', status)
+    }
+    if (category !== 'all') {
+        query = query.eq('category', category)
     }
 
-    // Get total count for pagination
-    const { count: totalItems } = organizationId
-        ? await supabase
-            .from('assets')
-            .select('*', { count: 'exact', head: true })
-            .eq('organization_id', organizationId)
-        : { count: 0 }
+    const { data: assetsData, count: totalItems } = await query
+        .order('purchase_date', { ascending: false })
+        .range(offset, offset + ITEMS_PER_PAGE - 1)
 
-    // Get paginated assets
-    const { data: assets } = organizationId
-        ? await supabase
-            .from('assets')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .order('purchase_date', { ascending: false })
-            .range(offset, offset + ITEMS_PER_PAGE - 1)
-        : { data: [] }
+    const assets = (assetsData as unknown as Asset[]) || []
 
-    // Get ALL assets for summary calculations (without pagination)
-    const { data: allAssets } = organizationId
-        ? await supabase
-            .from('assets')
-            .select('cost_usd, accumulated_depreciation')
-            .eq('organization_id', organizationId)
-        : { data: [] }
+    // Get summary calculations from all assets (filtered by org but not paginated)
+    const { data: allAssets } = await supabase
+        .from('active_inventory')
+        .select('cost_usd, accumulated_depreciation')
+        .eq('organization_id', organizationId)
 
-    // Calculate totals from all assets
     const totalCost = allAssets?.reduce((sum, a) => sum + (a.cost_usd || 0), 0) || 0
     const totalDepreciation = allAssets?.reduce((sum, a) => sum + (a.accumulated_depreciation || 0), 0) || 0
     const netValue = totalCost - totalDepreciation
@@ -88,41 +87,44 @@ export default async function InventarioPage({ searchParams }: PageProps) {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white shadow-lg rounded-xl p-6">
-                    <h3 className="text-sm font-medium text-gray-500">Costo Total</h3>
+                <div className="bg-white shadow-lg rounded-xl p-6 border border-gray-100">
+                    <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Costo Total</h3>
                     <p className="mt-2 text-3xl font-bold text-blue-600">
                         ${totalCost.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">{totalItems || 0} activos</p>
+                    <p className="text-xs text-gray-500 mt-1">{allAssets?.length || 0} activos en total</p>
                 </div>
 
-                <div className="bg-white shadow-lg rounded-xl p-6">
-                    <h3 className="text-sm font-medium text-gray-500">Depreciación Acumulada</h3>
+                <div className="bg-white shadow-lg rounded-xl p-6 border border-gray-100">
+                    <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Depreciación Acumulada</h3>
                     <p className="mt-2 text-3xl font-bold text-orange-600">
                         ${totalDepreciation.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                        {totalCost > 0 ? ((totalDepreciation / totalCost) * 100).toFixed(1) : 0}% del costo
+                        {totalCost > 0 ? ((totalDepreciation / totalCost) * 100).toFixed(1) : 0}% del costo total
                     </p>
                 </div>
 
-                <div className="bg-white shadow-lg rounded-xl p-6">
-                    <h3 className="text-sm font-medium text-gray-500">Valor Neto</h3>
+                <div className="bg-white shadow-lg rounded-xl p-6 border border-gray-100">
+                    <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Valor Neto en Libros</h3>
                     <p className="mt-2 text-3xl font-bold text-green-600">
                         ${netValue.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">Valor en libros</p>
+                    <p className="text-xs text-gray-500 mt-1">Estimación actual</p>
                 </div>
             </div>
 
             <AssetTable
-                assets={assets || []}
+                assets={assets}
                 organizationName={orgName}
                 totalItems={totalItems || 0}
                 currentPage={currentPage}
                 itemsPerPage={ITEMS_PER_PAGE}
+                filters={{
+                    status,
+                    category
+                }}
             />
         </div>
     )
 }
-

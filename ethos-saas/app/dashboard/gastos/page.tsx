@@ -44,6 +44,7 @@ export default async function GastosPage({ searchParams }: GastosPageProps) {
             .from('transactions_expense')
             .select('*', { count: 'exact', head: true })
             .eq('organization_id', organizationId)
+            .is('deleted_at', null)
         : { count: 0 }
 
     const totalItems = count || 0
@@ -54,6 +55,7 @@ export default async function GastosPage({ searchParams }: GastosPageProps) {
             .from('transactions_expense')
             .select('*')
             .eq('organization_id', organizationId)
+            .is('deleted_at', null)
             .order('date', { ascending: false })
             .range(offset, offset + normalizedLimit - 1)
         : { data: [] }
