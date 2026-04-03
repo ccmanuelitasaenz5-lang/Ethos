@@ -5,9 +5,10 @@ import { useState } from 'react'
 
 interface LedgerTableProps {
     entries: JournalEntry[]
+    onNewEntry?: () => void
 }
 
-export default function LedgerTable({ entries }: LedgerTableProps) {
+export default function LedgerTable({ entries, onNewEntry }: LedgerTableProps) {
     // Aggregate by account code
     const accountsMap = entries.reduce((acc, entry) => {
         if (!acc[entry.account_code]) {
@@ -30,7 +31,22 @@ export default function LedgerTable({ entries }: LedgerTableProps) {
     const accounts = Object.values(accountsMap).sort((a, b) => a.code.localeCompare(b.code))
 
     return (
-        <div className="overflow-x-auto border border-gray-100 rounded-lg">
+        <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print">
+                <h3 className="text-lg font-bold text-gray-900">Resumen de Cuentas (Mayor)</h3>
+                <div className="flex space-x-2 w-full sm:w-auto">
+                    {onNewEntry && (
+                        <button
+                            onClick={onNewEntry}
+                            className="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg shadow-sm text-sm font-bold hover:bg-primary-700 transition-all active:scale-95"
+                        >
+                            + Nuevo Asiento
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <div className="overflow-x-auto border border-gray-100 rounded-xl">
             <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 uppercase text-[10px] font-bold text-gray-500 tracking-wider">
                     <tr>
@@ -64,6 +80,7 @@ export default function LedgerTable({ entries }: LedgerTableProps) {
                     )}
                 </tbody>
             </table>
+        </div>
         </div>
     )
 }

@@ -4,9 +4,10 @@ import { JournalEntry } from '@/types/database'
 
 interface TrialBalanceProps {
     entries: JournalEntry[]
+    onNewEntry?: () => void
 }
 
-export default function TrialBalance({ entries }: TrialBalanceProps) {
+export default function TrialBalance({ entries, onNewEntry }: TrialBalanceProps) {
     // Simple aggregation for total check
     const totals = entries.reduce((acc, entry) => {
         acc.debit += entry.debit
@@ -18,7 +19,21 @@ export default function TrialBalance({ entries }: TrialBalanceProps) {
 
     return (
         <div className="space-y-6">
-            <div className={`p-4 rounded-lg border flex items-center justify-between ${isBalanced ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print pb-2">
+                <h3 className="text-lg font-bold text-gray-900">Balance de Comprobación</h3>
+                <div className="flex space-x-2 w-full sm:w-auto">
+                    {onNewEntry && (
+                        <button
+                            onClick={onNewEntry}
+                            className="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg shadow-sm text-sm font-bold hover:bg-primary-700 transition-all active:scale-95"
+                        >
+                            + Nuevo Asiento
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <div className={`p-5 rounded-xl border flex items-center justify-between ${isBalanced ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
                 <div className="flex items-center gap-3">
                     <div className={`w-3 h-3 rounded-full ${isBalanced ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
                     <span className="font-semibold uppercase tracking-wider text-xs">

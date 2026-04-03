@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isPeriodClosed } from "@/app/actions/accounting";
 import { expenseSchema } from "@/lib/validations/expense";
 import { createAuditLog } from "@/lib/security/audit";
+import { logSecurityEvent, isRateLimited } from "@/lib/security/logs";
 import { getRateForDate } from "@/lib/exchange";
  
 export async function createExpense(formData: FormData) {
@@ -16,6 +17,11 @@ export async function createExpense(formData: FormData) {
  
   if (!user) {
     return { error: "No autenticado" };
+  }
+
+  // Rate limiting para prevenir spam de gastos (20 por minuto)
+  if (await isRateLimited("expense_creation", 20, 1)) {
+    return { error: "Has excedido el límite de creación de registros por minuto. Por favor, espera un momento." };
   }
  
   // 1. Validar con Zod
@@ -116,105 +122,12 @@ export async function createExpense(formData: FormData) {
     newData: values,
   });
  
+  // --- GENERACIÓN AUTOMÁTICA DESACTIVADA (Transición a Libro Diario Manual) ---
+  /*
   if (values.status === "finalized") {
-      // --- RESOLVER NOMBRES DE CUENTAS ---
-      const { data: accounts } = await supabase
-        .from("accounting_accounts")
-        .select("code, name, id")
-        .eq("organization_id", userData.organization_id)
-        .in(
-          "code",
-          [
-            values.payment_account as string,
-            values.account_code as string,
-          ].filter(Boolean),
-        );
-    
-      const accountsMap: Record<string, string> = {};
-      const accountsIds: Record<string, string> = {};
-      accounts?.forEach((a) => {
-        accountsMap[a.code] = a.name;
-        accountsIds[a.code] = a.id;
-      });
-    
-      // --- GENERAR ASIENTO CONTABLE ---
-      const { data: lastEntry } = await supabase
-        .from("journal_entries")
-        .select("entry_number")
-        .eq("organization_id", userData.organization_id)
-        .order("entry_number", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-    
-      const nextEntryNumber = (lastEntry?.entry_number || 0) + 1;
-    
-      const journalEntries = [
-        {
-          organization_id: userData.organization_id,
-          date: values.date,
-          entry_number: nextEntryNumber,
-          description: `Gasto: ${values.supplier} - ${values.concept}`,
-          account_code: values.account_code || (values.category === "Activo" ? "1.2.01" : "5.1.01"),
-          account_name: accountsMap[values.account_code || ""] || (values.category === "Activo" ? "Activos Fijos" : "Gastos Operativos"),
-          debit: amountUSD,
-          credit: 0,
-          reference_id: expenseData.id,
-          reference_type: "expense",
-          created_by: user.id,
-        },
-        {
-          organization_id: userData.organization_id,
-          date: values.date,
-          entry_number: nextEntryNumber,
-          description: `Pago Gasto: ${values.supplier}`,
-          account_code: values.payment_account || "1.1.01",
-          account_name: accountsMap[values.payment_account || ""] || "Caja y Bancos",
-          debit: 0,
-          credit: amountUSD,
-          reference_id: expenseData.id,
-          reference_type: "expense",
-          created_by: user.id,
-        },
-      ];
-    
-      const { data: createdEntries, error: journalError } = await supabase
-        .from("journal_entries")
-        .insert(journalEntries)
-        .select();
-    
-      if (journalError) {
-        return { error: `Gasto guardado pero error al generar asiento: ${journalError.message}` };
-      }
-    
-      // --- INTEGRACIÓN AUTOMÁTICA CON BANCOS ---
-      const paymentAccountCode = values.payment_account;
-      if (paymentAccountCode && accountsIds[paymentAccountCode]) {
-        const { data: bankAccount } = await supabase
-          .from("bank_accounts")
-          .select("id, currency")
-          .eq("accounting_account_id", accountsIds[paymentAccountCode])
-          .single();
-    
-        if (bankAccount) {
-          const transactionAmount = bankAccount.currency === "USD" ? amountUSD : amountVES;
-          const creditEntry = createdEntries?.find((e) => e.account_code === paymentAccountCode);
-    
-          if (transactionAmount > 0) {
-            await supabase.from("bank_transactions").insert({
-              organization_id: userData.organization_id,
-              bank_account_id: bankAccount.id,
-              date: values.date,
-              description: `Pago Gasto: ${values.supplier} - ${values.concept}`,
-              amount: -transactionAmount,
-              transaction_type: "expense",
-              reference: values.invoice_number || null,
-              created_by: user.id,
-              journal_entry_id: creditEntry?.id,
-            });
-          }
-        }
-      }
+      // ... (Lógica de asientos y bancos omitida para control manual) ...
   }
+  */
  
   revalidatePath("/dashboard/gastos");
   revalidatePath("/dashboard/banco");

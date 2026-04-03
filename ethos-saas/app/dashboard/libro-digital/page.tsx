@@ -4,11 +4,16 @@ import { useState, useEffect } from 'react'
 import JournalTable from '@/components/libro-digital/JournalTable'
 import LedgerTable from '@/components/libro-digital/LedgerTable'
 import TrialBalance from '@/components/libro-digital/TrialBalance'
-import { JournalEntry } from '@/types/database'
+import ManualEntryModal from '@/components/libro-digital/ManualEntryModal'
+import { JournalEntry, TransactionAccount } from '@/types/database'
 import { createClient } from '@/lib/supabase/client'
+import { createManualJournalEntry } from '@/app/actions/accounting'
+import { toast } from 'react-hot-toast'
 
 export default function LibroDigitalPage() {
     const [entries, setEntries] = useState<JournalEntry[]>([])
+    const [accounts, setAccounts] = useState<TransactionAccount[]>([])
+    const [isModalOpen, setIsModalOpen] = useState(false)
     const [orgName, setOrgName] = useState('Organización')
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState<'diario' | 'mayor' | 'balance'>('diario')
@@ -42,6 +47,14 @@ export default function LibroDigitalPage() {
                     .order('entry_number', { ascending: false })
 
                 setEntries(data || [])
+
+                const { data: accountsData } = await supabase
+                    .from('accounting_accounts')
+                    .select('*')
+                    .eq('organization_id', userData.organization_id)
+                    .order('code', { ascending: true })
+
+                setAccounts(accountsData as TransactionAccount[] || [])
             }
             setLoading(false)
         }
@@ -60,13 +73,19 @@ export default function LibroDigitalPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-end">
+            <div className="flex justify-between items-end flex-wrap gap-4 px-2 sm:px-0">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Libro Digital</h1>
+                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Libro Digital</h1>
                     <p className="mt-1 text-sm text-gray-600">
                         Contabilidad por Partida Doble - Libro Diario y Mayor con Balance de Comprobación
                     </p>
                 </div>
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-all shadow-md hover:shadow-lg active:scale-95"
+                >
+                    + Nuevo Asiento Contable
+                </button>
             </div>
 
             <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
@@ -95,12 +114,44 @@ export default function LibroDigitalPage() {
 
                 <div className="p-4 sm:p-8 min-h-[400px]">
                     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        {activeTab === 'diario' && <JournalTable entries={entries} organizationName={orgName} />}
-                        {activeTab === 'mayor' && <LedgerTable entries={entries} />}
-                        {activeTab === 'balance' && <TrialBalance entries={entries} />}
+                        {activeTab === 'diario' && (
+                            <JournalTable 
+                                entries={entries} 
+                                organizationName={orgName} 
+                                onNewEntry={() => setIsModalOpen(true)} 
+                            />
+                        )}
+                        {activeTab === 'mayor' && (
+                            <LedgerTable 
+                                entries={entries} 
+                                onNewEntry={() => setIsModalOpen(true)}
+                            />
+                        )}
+                        {activeTab === 'balance' && (
+                            <TrialBalance 
+                                entries={entries} 
+                                onNewEntry={() => setIsModalOpen(true)}
+                            />
+                        )}
                     </div>
                 </div>
             </div>
+
+            <ManualEntryModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                accounts={accounts}
+                onSave={async (payload) => {
+                    const res = await createManualJournalEntry(payload)
+                    if (res?.error) {
+                        return { error: res.error }
+                    } else {
+                        toast.success('Asiento registrado con éxito')
+                        setTimeout(() => window.location.reload(), 1000)
+                        return { success: true }
+                    }
+                }}
+            />
         </div>
     )
 }

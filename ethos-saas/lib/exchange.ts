@@ -56,11 +56,11 @@ export async function getTodayRate(): Promise<number> {
 }
  
 // ── Con caché de Next.js (revalida cada hora) ──────────
-export const getBCVRate = unstable_cache(
-  getTodayRate,
-  ['bcv-rate'],
-  { revalidate: 3600, tags: ['bcv-rate'] }
-)
+// IMPORTANTE: No usamos unstable_cache con el cliente de servidor (cookies)
+// porque causa un crash en Next.js 14. Usamos un fetch directo para la tasa pública.
+export const getBCVRate = async () => {
+  return getTodayRate()
+}
  
 // ── Tasa de una fecha específica (para registros históricos)
 export async function getRateForDate(date: string): Promise<number> {

@@ -469,3 +469,92 @@ export async function isPeriodClosed(dateString: string) {
 
   return !!data;
 }
+
+/**
+ * Función: Crear un Asiento Contable Manual (Bimonetario)
+ * Valida la partida doble en USD y VES antes de registrar.
+ */
+export async function createManualJournalEntry(payload: {
+  date: string;
+  description: string;
+  exchange_rate: number;
+  items: {
+    account_code: string;
+    account_name: string;
+    description?: string;
+    debit: number;
+    credit: number;
+    debit_ves: number;
+    credit_ves: number;
+  }[];
+}) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+
+  const { data: userData } = await supabase
+    .from("users")
+    .select("organization_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!userData?.organization_id) return { error: "Sin organización" };
+
+  // 1. Validar Periodo
+  if (await isPeriodClosed(payload.date)) {
+    return { error: "El periodo contable está cerrado para esta fecha." };
+  }
+
+  // 2. Validar Partida Doble
+  const totalDebitUSD = payload.items.reduce((sum, i) => sum + i.debit, 0);
+  const totalCreditUSD = payload.items.reduce((sum, i) => sum + i.credit, 0);
+  const totalDebitVES = payload.items.reduce((sum, i) => sum + i.debit_ves, 0);
+  const totalCreditVES = payload.items.reduce((sum, i) => sum + i.credit_ves, 0);
+
+  const diffUSD = Math.abs(totalDebitUSD - totalCreditUSD);
+  const diffVES = Math.abs(totalDebitVES - totalCreditVES);
+
+  if (diffUSD > 0.01 || diffVES > 0.01) {
+    return {
+      error: `El asiento no cuadra. Diferencia USD: ${diffUSD.toFixed(2)}, Diferencia VES: ${diffVES.toFixed(2)}`,
+    };
+  }
+
+  // 3. Obtener siguiente número de asiento
+  const { data: lastEntry } = await supabase
+    .from("journal_entries")
+    .select("entry_number")
+    .eq("organization_id", userData.organization_id)
+    .order("entry_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextNumber = (lastEntry?.entry_number || 0) + 1;
+
+  // 4. Preparar registros
+  const entries = payload.items.map((item) => ({
+    organization_id: userData.organization_id,
+    date: payload.date,
+    entry_number: nextNumber,
+    description: item.description || payload.description,
+    account_code: item.account_code,
+    account_name: item.account_name,
+    debit: item.debit,
+    credit: item.credit,
+    debit_ves: item.debit_ves,
+    credit_ves: item.credit_ves,
+    exchange_rate: payload.exchange_rate,
+    reference_type: "manual",
+    created_by: user.id,
+  }));
+
+  const { error } = await supabase.from("journal_entries").insert(entries);
+
+  if (error) {
+    console.error("Error al insertar asiento manual:", error);
+    return { error: "Error en base de datos al guardar el asiento." };
+  }
+
+  revalidatePath("/dashboard/libro-digital");
+  return { success: true, entry_number: nextNumber };
+}

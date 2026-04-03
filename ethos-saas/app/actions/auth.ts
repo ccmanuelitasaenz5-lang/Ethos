@@ -115,6 +115,12 @@ export async function signup(formData: FormData) {
       userId: authData.user.id,
     });
 
+    // Registrar inicio de creación de organización (para auditoría)
+    await logSecurityEvent("org_creation", "success", {
+      userId: authData.user.id,
+      metadata: { orgName }
+    });
+
     // 2. Crear la organización
     // Intentamos insertar. Si falla, capturamos el error exacto de la DB
     const { data: orgData, error: orgError } = await adminSupabase

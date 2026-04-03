@@ -11,9 +11,10 @@ import PrintHeader from '@/components/layout/PrintHeader'
 interface JournalTableProps {
     entries: JournalEntry[]
     organizationName?: string
+    onNewEntry?: () => void
 }
 
-export default function JournalTable({ entries, organizationName = 'Organización' }: JournalTableProps) {
+export default function JournalTable({ entries, organizationName = 'Organización', onNewEntry }: JournalTableProps) {
     const [searchTerm, setSearchTerm] = useState('')
 
     const filteredEntries = entries.filter(entry =>
@@ -29,8 +30,10 @@ export default function JournalTable({ entries, organizationName = 'Organizació
             'Código Cuenta': entry.account_code,
             'Cuenta': entry.account_name,
             'Descripción': entry.description,
-            'Debe': entry.debit,
-            'Haber': entry.credit,
+            'Debe ($)': entry.debit,
+            'Haber ($)': entry.credit,
+            'Debe (Bs)': entry.debit_ves || 0,
+            'Haber (Bs)': entry.credit_ves || 0,
         }))
 
         const wb = XLSX.utils.book_new()
@@ -83,14 +86,16 @@ export default function JournalTable({ entries, organizationName = 'Organizació
                             <th className="px-4 py-3 text-left">Fecha</th>
                             <th className="px-4 py-3 text-left">Cuenta</th>
                             <th className="px-4 py-3 text-left">Descripción</th>
-                            <th className="px-4 py-3 text-right">Debe</th>
-                            <th className="px-4 py-3 text-right">Haber</th>
+                            <th className="px-4 py-3 text-right">Debe ($)</th>
+                            <th className="px-4 py-3 text-right">Haber ($)</th>
+                            <th className="px-4 py-3 text-right text-blue-800">Debe (Bs)</th>
+                            <th className="px-4 py-3 text-right text-blue-800">Haber (Bs)</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100 text-sm">
                         {filteredEntries.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                                <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                                     No hay asientos registrados
                                 </td>
                             </tr>
@@ -116,6 +121,12 @@ export default function JournalTable({ entries, organizationName = 'Organizació
                                     <td className="px-4 py-3 text-right font-mono text-red-600">
                                         {entry.credit > 0 ? entry.credit.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '-'}
                                     </td>
+                                    <td className="px-4 py-3 text-right font-mono text-green-700 bg-blue-50/20">
+                                        {entry.debit_ves && entry.debit_ves > 0 ? entry.debit_ves.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '-'}
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-mono text-red-700 bg-blue-50/20">
+                                        {entry.credit_ves && entry.credit_ves > 0 ? entry.credit_ves.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '-'}
+                                    </td>
                                 </tr>
                             ))
                         )}
@@ -131,15 +142,27 @@ export default function JournalTable({ entries, organizationName = 'Organizació
                             <td className="px-4 py-3 text-right font-bold font-mono text-red-700">
                                 {filteredEntries.reduce((sum, e) => sum + (e.credit || 0), 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
                             </td>
+                            <td className="px-4 py-3 text-right font-bold font-mono text-green-800 bg-blue-50/50">
+                                {filteredEntries.reduce((sum, e) => sum + (e.debit_ves || 0), 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold font-mono text-red-800 bg-blue-50/50">
+                                {filteredEntries.reduce((sum, e) => sum + (e.credit_ves || 0), 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                            </td>
                         </tr>
                         <tr className="bg-primary-50">
                             <td colSpan={4} className="px-4 py-2 text-right font-bold text-primary-900">
                                 DIFERENCIA (Debe - Haber):
                             </td>
                             <td colSpan={2} className="px-4 py-2 text-center font-bold font-mono text-primary-700">
-                                {(
+                                $ {(
                                     filteredEntries.reduce((sum, e) => sum + (e.debit || 0), 0) -
                                     filteredEntries.reduce((sum, e) => sum + (e.credit || 0), 0)
+                                ).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td colSpan={2} className="px-4 py-2 text-center font-bold font-mono text-primary-700">
+                                Bs {(
+                                    filteredEntries.reduce((sum, e) => sum + (e.debit_ves || 0), 0) -
+                                    filteredEntries.reduce((sum, e) => sum + (e.credit_ves || 0), 0)
                                 ).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
                             </td>
                         </tr>

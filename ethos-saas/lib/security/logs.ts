@@ -1,7 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { headers } from 'next/headers'
 
-export type SecurityEventType = 'login_attempt' | 'signup_attempt' | 'critical_action' | 'password_reset'
+export type SecurityEventType = 
+    | 'login_attempt' 
+    | 'signup_attempt' 
+    | 'critical_action' 
+    | 'password_reset'
+    | 'income_creation'
+    | 'expense_creation'
+    | 'org_creation'
 
 /**
  * Logs a security event to the database.
@@ -34,7 +41,12 @@ export async function logSecurityEvent(
         })
 
         if (error) {
-            console.error('Error writing security log:', error)
+            // Error code PGRST205 indicates table is missing
+            if (error.code === 'PGRST205') {
+                console.warn('Security logging skipped: public.security_logs table not found in DB.')
+            } else {
+                console.error('Error writing security log:', error)
+            }
         }
     } catch (error) {
         // Fail silently to not block main flow, but log to console
@@ -58,9 +70,10 @@ export async function isRateLimited(
     try {
         const supabase = await createClient()
         const headersList = await headers()
-        const ip = headersList.get('x-forwarded-for')?.split(',')[0] || 'unknown'
+        const ip = headersList.get('x-forwarded-for')?.split(',')[0] || 'localhost'
 
-        // Call the database function defined in migration 006
+        // Call the database function defined in migration 008
+        // Note: Using defensive call in case function is missing (PGRST202)
         const { data, error } = await supabase.rpc('check_rate_limit', {
             p_ip_address: ip,
             p_event_type: eventType,
@@ -69,13 +82,18 @@ export async function isRateLimited(
         })
 
         if (error) {
-            console.error('Rate limit DB check failed:', error)
-            return false // Fail open (allow request) if DB check fails to prevent accidental lockouts
+            // Error code PGRST202 means the function is missing in the DB
+            if (error.code === 'PGRST202') {
+                console.warn('Rate limit check skipped: public.check_rate_limit function not found in DB.')
+            } else {
+                console.error('Rate limit DB check failed:', error)
+            }
+            return false // Fail open (allow request) if DB check fails
         }
 
         return !!data
     } catch (error) {
         console.error('Rate limit check error:', error)
-        return false
+        return false // Fail open
     }
 }

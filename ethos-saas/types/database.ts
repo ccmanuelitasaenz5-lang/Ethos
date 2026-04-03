@@ -117,6 +117,9 @@ export interface JournalEntry {
     account_name: string
     debit: number
     credit: number
+    debit_ves?: number
+    credit_ves?: number
+    exchange_rate?: number
     reference_id: string | null
     reference_type: 'income' | 'expense' | 'manual' | null
     created_by: string | null
