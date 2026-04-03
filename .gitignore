@@ -1,26 +1,42 @@
+# dependencies
+node_modules/
+/node_modules
+/.pnp
+.pnp.js
+
 # Next.js
 .next/
+/.next/
 out/
+/out/
 build/
+/build
 
-# Node
-node_modules/
+# testing
+/coverage
+
+# misc
+.DS_Store
+Thumbs.db
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.npm
+*.log
 
 # Env
 .env
+.env*.local
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 .env.local.example
-
-# OS
-.DS_Store
-Thumbs.db
 
 # Ethos specific
 *.zip
